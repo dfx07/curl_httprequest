@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <memory>
 
 enum content_type
 {
@@ -356,6 +357,7 @@ struct HTTPRequestProgress
 {
 public:
 	int		m_action;
+	int		m_force_stop = false;
 
 	double	m_cur_upload;
 	double	m_cur_download;
@@ -425,11 +427,17 @@ private:
 private:
 	static int progress_func(void* ptr, double TotalToDownload, double NowDownloaded, double TotalToUpload, double NowUploaded)
 	{
-		std::cout.precision(17);
-
-		std::cout << TotalToUpload << std::endl;
+		// not setup
+		if (ptr == NULL)
+			return 0;
 
 		HTTPRequestProgress* process = static_cast<HTTPRequestProgress*>(ptr);
+
+		// stop download or upload data network
+		if (process && process->m_force_stop)
+		{
+			return 1;
+		}
 
 		if (TotalToUpload > 0 && process)
 		{
@@ -591,6 +599,11 @@ private:
 
 		CURLcode res = curl_easy_perform(m_curl);
 
+		curl_easy_getinfo(m_curl, CURLINFO_SPEED_UPLOAD, &m_speed_send);
+		curl_easy_getinfo(m_curl, CURLINFO_TOTAL_TIME, &m_time_send);
+		
+		curl_easy_getinfo(m_curl, CURLINFO_SPEED_DOWNLOAD, &m_speed_download);
+
 		return convert_code(res);
 	}
 
@@ -681,6 +694,12 @@ private:
 	{
 		curl_easy_cleanup(m_curl);
 	}
+private:
+	double					m_speed_send;
+	double					m_time_send;
+	double					m_speed_download;
+	double					m_time_download;
+
 private:
 	CURL*					m_curl;
 	HTTPRequestOption		m_option;
