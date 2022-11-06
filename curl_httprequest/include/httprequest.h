@@ -5,6 +5,8 @@
 #include <vector>
 #include <memory>
 
+#include "kyhttp.h"
+
 enum content_type
 {
 	none					=-1, //not define
