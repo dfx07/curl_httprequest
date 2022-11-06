@@ -58,6 +58,12 @@ struct WebProxy
 	std::wstring m_pass;
 };
 
+struct RequestUri
+{
+public:
+	std::wstring uri;
+};
+
 struct HttpRequestOption
 {
 	int		m_retry_connet;		  // count
@@ -77,6 +83,15 @@ public:
 
 	double	m_total_download;
 	double	m_total_upload;
+};
+
+struct HttpHeaderData
+{
+	std::string		 m_request_param;	 // :))
+	std::string		 m_host;			 // :))
+	HttpContentType  m_content_type;	 // :))
+	std::string		 m_accept_encoding;	 // :))
+	std::string		 m_accept;			 // :))
 };
 
 __END___NAMESPACE__
