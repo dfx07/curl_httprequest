@@ -12,6 +12,19 @@
 __BEGIN_NAMESPACE__
 
 
+#ifndef interface
+#define interface struct
+#endif
+
+#ifndef IN
+#define IN
+#endif
+
+#ifndef OUT
+#define OUT
+#endif
+
+
 interface HttpClient;
 std::shared_ptr<HttpClient> HttpClienttPtr;
 
@@ -85,13 +98,92 @@ public:
 	double	m_total_upload;
 };
 
-struct HttpHeaderData
+interface HttpHeaderInfo
 {
-	std::string		 m_request_param;	 // :))
-	std::string		 m_host;			 // :))
-	HttpContentType  m_content_type;	 // :))
-	std::string		 m_accept_encoding;	 // :))
-	std::string		 m_accept;			 // :))
+	struct HttpHeaderData
+	{
+		std::string		 m_request_param;	 // :))
+		std::string		 m_host;			 // :))
+		HttpContentType  m_content_type;	 // :))
+		std::string		 m_accept_encoding;	 // :))
+		std::string		 m_accept;			 // :))
+	};
+
+private:
+	HttpHeaderData	m_header_data;
+
+protected:
+	virtual int		Create() = 0;
+	virtual void*	GetBase() = 0;
+
+public:
+	virtual std::string GetRawContent() = 0;
+
+public:
+	void set_request_param(IN const char* req_param)
+	{
+		m_header_data.m_request_param = req_param;
+	}
+	void set_content_type(IN HttpContentType contenttype)
+	{
+		m_header_data.m_content_type = contenttype;
+	}
+	void set_accpet(IN const char* accept)
+	{
+		m_header_data.m_accept_encoding = accept;
+	}
+	void set_host(IN const char* host)
+	{
+		m_header_data.m_host = host;
+	}
 };
+
+interface HttpContentInfo
+{
+protected:
+	virtual HttpContentType GetType() const = 0;
+	virtual int Create(IN HttpClient* request = NULL) = 0;
+	virtual void* GetData() = 0;
+
+public:
+	virtual std::string	GetRawContent() = 0;
+};
+
+/*==================================================================================
+* interface HttpRequest
+===================================================================================*/
+interface HttpRequest
+{
+protected:
+	HttpHeaderInfo*		m_header;
+	HttpContentInfo*	m_content;
+
+protected:
+	HttpRequestOption	m_option;
+	HttpMethod			m_method;
+};
+
+/*==================================================================================
+* interface HttpResponse
+===================================================================================*/
+interface HttpResponse
+{
+	virtual HTTPStatusCode Status() const = 0;
+	virtual std::string	   Header() const = 0;
+	virtual std::string	   Content() const = 0;
+};
+
+/*==================================================================================
+* interface HttpResponse
+===================================================================================*/
+interface HttpClient
+{
+protected:
+	HttpClientProgress	m_progress;
+public:
+	virtual HTTPStatusCode Post(IN const RequestUri uri ,IN HttpRequest* request) = 0;
+	virtual HTTPStatusCode Get(IN const RequestUri uri,IN HttpRequest* request) = 0;
+};
+
 
 __END___NAMESPACE__
