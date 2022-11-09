@@ -27,6 +27,8 @@ __BEGIN_NAMESPACE__
 class CurlHttpHeader : public HttpHeader
 {
 private:
+	HttpHeaderData	   m_header_data;
+private:
 	struct curl_slist* m_curl_slist;
 	std::string		   m_buffer;
 private:
@@ -64,19 +66,19 @@ public:
 	}
 
 protected:
-	virtual int	Create(IN void* base, IN HttpHeaderData& header_data) override
+	virtual int	Create(IN void* base) override
 	{
 		CURL* curl = static_cast<CURL*>(base);
 		if (!curl) return 0;
 
-		if (header_data.m_content_type != HttpDetailContentType::Auto)
-			header_format_replace("Content-Type: %s", get_string_content_type(header_data.m_content_type).c_str());
-		if (!header_data.m_host.empty())
-			header_format_replace("Host: %s", header_data.m_host.c_str());
-		if (!header_data.m_accept.empty())
-			header_format_replace("Accept: %s", header_data.m_accept.c_str());
-		if (!header_data.m_accept_encoding.empty())
-			header_format_replace("Accept-encoding: %s", header_data.m_accept_encoding.c_str());
+		if (m_header_data.m_content_type != HttpDetailContentType::Auto)
+			header_format_replace("Content-Type: %s", get_string_content_type(m_header_data.m_content_type).c_str());
+		if (!m_header_data.m_host.empty())
+			header_format_replace("Host: %s", m_header_data.m_host.c_str());
+		if (!m_header_data.m_accept.empty())
+			header_format_replace("Accept: %s", m_header_data.m_accept.c_str());
+		if (!m_header_data.m_accept_encoding.empty())
+			header_format_replace("Accept-encoding: %s", m_header_data.m_accept_encoding.c_str());
 
 		header_format_replace("Connection: Keep-Alive");
 		header_format_replace("User-Agent: Brinicle");
@@ -89,6 +91,33 @@ protected:
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, (curl_slist*)m_curl_slist);
 
 		return 1;
+	}
+
+public:
+
+	virtual void SetRequestParam(IN const char* req_param)
+	{
+		m_header_data.m_request_param = req_param;
+	}
+
+	virtual void SetContentType(IN HttpDetailContentType content_type)
+	{
+		m_header_data.m_content_type = content_type;
+	}
+
+	virtual void SetAccept(IN const char* accept)
+	{
+		m_header_data.m_accept = accept;
+	}
+
+	virtual void SetAcceptEncoding(IN const char* accept_encoding)
+	{
+		m_header_data.m_accept_encoding = accept_encoding;
+	}
+
+	virtual void SetHost(IN const char* host)
+	{
+		m_header_data.m_host = host;
 	}
 };
 
@@ -301,16 +330,13 @@ protected:
 
 class CurlHttpRequest : public HttpRequest
 {
-private:
-	HttpHeaderData		m_header_data;
-
 protected:
 	HttpHeaderPtr		m_header;
 	HttpContent*		m_content;
 
 protected:
-	HttpRequestOption	m_option;
 	RequestUri			m_uri;
+	HttpMethod			m_method;
 
 private:
 
@@ -323,7 +349,7 @@ private:
 
 		m_header = std::make_shared<CurlHttpHeader>();
 
-		if (m_header && !m_header->Create(curl, m_header_data))
+		if (m_header && !m_header->Create(curl))
 			return 0;
 
 		if (m_content && !m_content->Create(curl))
@@ -339,29 +365,14 @@ public:
 		m_content = content;
 	}
 
-	virtual void SetRequestParam(IN const char* req_param)
+	virtual HttpMethod GetMethod() const
 	{
-		m_header_data.m_request_param = req_param;
+		return m_method;
 	}
 
-	virtual void SetContentType(IN HttpDetailContentType content_type)
+	virtual RequestUri GetUri() const
 	{
-		m_header_data.m_content_type = content_type;
-	}
-
-	virtual void SetAccept(IN const char* accept)
-	{
-		m_header_data.m_accept = accept;
-	}
-
-	virtual void SetAcceptEncoding(IN const char* accept_encoding)
-	{
-		m_header_data.m_accept_encoding = accept_encoding;
-	}
-
-	virtual void SetHost(IN const char* host)
-	{
-		m_header_data.m_host = host;
+		return m_uri;
 	}
 };
 
@@ -557,14 +568,33 @@ private:
 		return HTTPStatusCode::OK;
 	}
 
-	HTTPStatusCode CreateRequest(IN HttpMethod method, IN HttpRequest* request)
+	HTTPStatusCode CreateRequest(IN HttpRequest* request)
 	{
-		if (method == HttpMethod::GET && !request)
-			return HTTPStatusCode::OK;
+		if (!request)
+			return HTTPStatusCode::FAILED;
 
 		if (!request->Create(m_curl))
 		{
 			return HTTPStatusCode::FAILED;
+		}
+
+		return HTTPStatusCode::OK;
+	}
+
+	HTTPStatusCode CreateRequest(IN HttpMethod method, IN HttpHeader* header = nullptr, IN HttpContent* content = nullptr)
+	{
+		
+		if (header && !header->Create(m_curl))
+		{
+			return HTTPStatusCode::FAILED;
+		}
+
+		if (method == HttpMethod::POST)
+		{
+			if (content && !content->Create(m_curl))
+			{
+				return HTTPStatusCode::FAILED;
+			}
 		}
 
 		return HTTPStatusCode::OK;
@@ -587,7 +617,26 @@ private:
 		return HTTPStatusCode::OK;
 	}
 public:
-	virtual HTTPStatusCode Post(IN const RequestUri uri, IN HttpRequest* request)
+	virtual HTTPStatusCode Send(IN HttpRequest* request)
+	{
+		auto method = request->GetMethod();
+
+		if (this->Create(method) != HTTPStatusCode::OK)
+		{
+			std::cout << "[err] POST - Create engine failed !" << std::endl;
+			return HTTPStatusCode::CREATE_FAILED;
+		}
+
+		if (this->CreateRequest(request) != HTTPStatusCode::OK)
+		{
+			std::cout << "[err] POST - Create request failed !" << std::endl;
+			return HTTPStatusCode::CREATE_FAILED;
+		}
+
+		return SendRequest(request->GetUri());
+	}
+
+	virtual HTTPStatusCode Post(IN const RequestUri uri, IN HttpHeader* header, IN HttpContent* content)
 	{
 		if (this->Create(HttpMethod::POST) != HTTPStatusCode::OK)
 		{
@@ -595,7 +644,7 @@ public:
 			return HTTPStatusCode::CREATE_FAILED;
 		}
 
-		if (this->CreateRequest(HttpMethod::POST, request) != HTTPStatusCode::OK)
+		if (this->CreateRequest(HttpMethod::POST, header, content) != HTTPStatusCode::OK)
 		{
 			std::cout << "[err] POST - Create request failed !" << std::endl;
 			return HTTPStatusCode::CREATE_FAILED;
@@ -605,14 +654,14 @@ public:
 	}
 
 
-	virtual HTTPStatusCode Get(IN const RequestUri uri, IN HttpRequest* request)
+	virtual HTTPStatusCode Get(IN const RequestUri uri, IN HttpHeader* header)
 	{
 		if (this->Create(HttpMethod::GET) != HTTPStatusCode::OK)
 		{
 			return HTTPStatusCode::CREATE_FAILED;
 		}
 
-		if (this->CreateRequest(HttpMethod::GET, request) != HTTPStatusCode::OK)
+		if (this->CreateRequest(HttpMethod::GET, header) != HTTPStatusCode::OK)
 		{
 			std::cout << "[err] GET - Create request failed !" << std::endl;
 			return HTTPStatusCode::CREATE_FAILED;

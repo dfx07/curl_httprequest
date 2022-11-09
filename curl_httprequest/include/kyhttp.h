@@ -210,7 +210,13 @@ struct HttpHeaderData
 ===================================================================================*/
 interface HttpHeader
 {
-	virtual int		Create(IN void* base, IN HttpHeaderData& header_data) = 0;
+	virtual int	 Create(IN void* base) = 0;
+
+	virtual void SetRequestParam(IN const char* req_param) = 0;
+	virtual void SetContentType(IN HttpDetailContentType type) = 0;
+	virtual void SetAccept(IN const char* accept) = 0;
+	virtual void SetAcceptEncoding(IN const char* accept_encoding) = 0;
+	virtual void SetHost(IN const char* host) = 0;
 };
 
 /*==================================================================================
@@ -229,11 +235,8 @@ interface HttpRequest
 {
 	virtual int  Create(IN void* base) = 0;
 
-	virtual void SetRequestParam(IN const char* req_param) = 0;
-	virtual void SetContentType(IN HttpDetailContentType type) = 0;
-	virtual void SetAccept(IN const char* accept) = 0;
-	virtual void SetAcceptEncoding(IN const char* accept_encoding) = 0;
-	virtual void SetHost(IN const char* host) = 0;
+	virtual HttpMethod GetMethod() = 0;
+	virtual RequestUri GetUri() = 0;
 };
 
 /*==================================================================================
@@ -252,8 +255,9 @@ interface HttpResponse
 ===================================================================================*/
 interface HttpClient
 {
-	virtual HTTPStatusCode Post(IN const RequestUri uri ,IN HttpRequest* request) = 0;
-	virtual HTTPStatusCode Get(IN const RequestUri uri,IN HttpRequest* request) = 0;
+	virtual HTTPStatusCode Send(IN HttpRequest* request) = 0;
+	virtual HTTPStatusCode Post(IN const RequestUri uri, IN HttpHeader* header, IN HttpContent* content) = 0;
+	virtual HTTPStatusCode Get(IN const RequestUri uri, IN HttpRequest* header = nullptr) = 0;
 };
 
 
