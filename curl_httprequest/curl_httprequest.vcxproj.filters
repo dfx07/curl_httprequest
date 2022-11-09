@@ -21,6 +21,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="curltest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="curl_httprequest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -32,23 +35,11 @@
     <ClInclude Include="include\kyhttp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\kyhttpclient.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\curl_httprequest.h">
+    <ClInclude Include="include\kyhttp_curl.h">
       <Filter>Header Files\curl</Filter>
-    </ClInclude>
-    <ClInclude Include="include\curl_httpclient.h">
-      <Filter>Header Files\curl</Filter>
-    </ClInclude>
-    <ClInclude Include="include\kyhttprequest.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\httprequest.h">
       <Filter>Header Files\test</Filter>
-    </ClInclude>
-    <ClInclude Include="include\kyhttpresponse.h">
-      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

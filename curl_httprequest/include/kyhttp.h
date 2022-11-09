@@ -26,19 +26,19 @@ __BEGIN_NAMESPACE__
 
 
 interface HttpClient;
-std::shared_ptr<HttpClient> HttpClienttPtr;
+typedef std::shared_ptr<HttpClient> HttpClienttPtr;
 
-interface HttpHeaderInfo;
-std::shared_ptr<HttpHeaderInfo> HttpHeaderInfoPtr;
+interface HttpHeader;
+typedef std::shared_ptr<HttpHeader> HttpHeaderPtr;
 
-interface HttpContentInfo;
-std::shared_ptr<HttpContentInfo> HttpContentInfoPtr;
+interface HttpContent;
+typedef std::shared_ptr<HttpContent> HttpContentPtr;
 
 interface HttpRequest;
-std::shared_ptr<HttpRequest> HttpRequestPtr;
+typedef std::shared_ptr<HttpRequest> HttpRequestPtr;
 
 interface HttpResponse;
-std::shared_ptr<HttpResponse> HttpResponsePtr;
+typedef std::shared_ptr<HttpResponse> HttpResponsePtr;
 
 
 
@@ -55,9 +55,100 @@ enum HTTPStatusCode
 
 enum HttpContentType
 {
-	MULTIPART,
-	URLENCODE
+	none		,
+	application	,
+	multipart	,
+	image		,
+	audio		,
 };
+
+enum HttpDetailContentType
+{
+	// application
+	Auto,
+	application_x_www_form_urlencoded,
+	application_octet_stream		,
+	application_xml					,
+	application_json				,
+
+	text_html						,
+	text_javascript					,
+	text_json						,
+	text_plain						,
+	text_xml						,
+
+	multipart_mixed					,
+	multipart_alternative			,
+	multipart_related				,
+	multipart_form_data				,
+};
+
+enum HttpContentDispositionType
+{
+	_Auto,
+	_form_data,
+
+};
+
+static std::string get_string_content_disposition_type(HttpContentDispositionType type)
+{
+	switch (type)
+	{
+	case kyhttp::Auto:
+		break;
+	case kyhttp::_form_data:
+		return "form-data";
+		break;
+	}
+
+	return "";
+}
+
+static std::string get_string_content_type(HttpDetailContentType type)
+{
+	switch (type)
+	{
+	case kyhttp::Auto:
+		break;
+	case kyhttp::application_x_www_form_urlencoded:
+		return "application/x-www-form-urlencoded";
+		break;
+	case kyhttp::application_octet_stream:
+		return "application/octet-stream";
+		break;
+	case kyhttp::application_xml:
+		return "application/xml";
+		break;
+	case kyhttp::application_json:
+		return "application/json";
+		break;
+	case kyhttp::text_html:
+		return "text/html";
+		break;
+	case kyhttp::text_javascript:
+		break;
+	case kyhttp::text_json:
+		break;
+	case kyhttp::text_plain:
+		return "text/plain";
+		break;
+	case kyhttp::text_xml:
+		break;
+	case kyhttp::multipart_mixed:
+		break;
+	case kyhttp::multipart_alternative:
+		break;
+	case kyhttp::multipart_related:
+		break;
+	case kyhttp::multipart_form_data:
+		return "multipart/form-data";
+		break;
+	default:
+		break;
+	}
+
+	return "";
+}
 
 enum HttpMethod
 {
@@ -73,8 +164,7 @@ struct WebProxy
 
 struct RequestUri
 {
-public:
-	std::wstring uri;
+	std::string uri;
 };
 
 struct HttpRequestOption
@@ -85,9 +175,17 @@ struct HttpRequestOption
 	float	m_max_upload_speed;	  // kb/s
 };
 
+struct HttpClientOption
+{
+	bool	m_show_request;		  // show request
+	int		m_retry_connet;		  // count
+	float	m_connect_timout;	  // milliseconds
+	float	m_max_download_speed; // kb/s
+	float	m_max_upload_speed;	  // kb/s
+};
+
 struct HttpClientProgress
 {
-public:
 	int		m_action;
 	int		m_force_stop = false;
 
@@ -98,55 +196,30 @@ public:
 	double	m_total_upload;
 };
 
-interface HttpHeaderInfo
+struct HttpHeaderData
 {
-	struct HttpHeaderData
-	{
-		std::string		 m_request_param;	 // :))
-		std::string		 m_host;			 // :))
-		HttpContentType  m_content_type;	 // :))
-		std::string		 m_accept_encoding;	 // :))
-		std::string		 m_accept;			 // :))
-	};
-
-private:
-	HttpHeaderData	m_header_data;
-
-protected:
-	virtual int		Create() = 0;
-	virtual void*	GetBase() = 0;
-
-public:
-	virtual std::string GetRawContent() = 0;
-
-public:
-	void set_request_param(IN const char* req_param)
-	{
-		m_header_data.m_request_param = req_param;
-	}
-	void set_content_type(IN HttpContentType contenttype)
-	{
-		m_header_data.m_content_type = contenttype;
-	}
-	void set_accpet(IN const char* accept)
-	{
-		m_header_data.m_accept_encoding = accept;
-	}
-	void set_host(IN const char* host)
-	{
-		m_header_data.m_host = host;
-	}
+	std::string				m_request_param;	// :))
+	std::string				m_host;				// :))
+	HttpDetailContentType	m_content_type;		// :))
+	std::string				m_accept_encoding;	// :))
+	std::string				m_accept;			// :))
 };
 
-interface HttpContentInfo
+/*==================================================================================
+* interface HttpHeader
+===================================================================================*/
+interface HttpHeader
 {
-protected:
-	virtual HttpContentType GetType() const = 0;
-	virtual int Create(IN HttpClient* request = NULL) = 0;
-	virtual void* GetData() = 0;
+	virtual int		Create(IN void* base, IN HttpHeaderData& header_data) = 0;
+};
 
-public:
-	virtual std::string	GetRawContent() = 0;
+/*==================================================================================
+* interface HttpContent
+===================================================================================*/
+interface HttpContent
+{
+	virtual HttpContentType GetType() const = 0;
+	virtual int Create(IN void* base = NULL) = 0;
 };
 
 /*==================================================================================
@@ -154,13 +227,13 @@ public:
 ===================================================================================*/
 interface HttpRequest
 {
-protected:
-	HttpHeaderInfo*		m_header;
-	HttpContentInfo*	m_content;
+	virtual int  Create(IN void* base) = 0;
 
-protected:
-	HttpRequestOption	m_option;
-	HttpMethod			m_method;
+	virtual void SetRequestParam(IN const char* req_param) = 0;
+	virtual void SetContentType(IN HttpDetailContentType type) = 0;
+	virtual void SetAccept(IN const char* accept) = 0;
+	virtual void SetAcceptEncoding(IN const char* accept_encoding) = 0;
+	virtual void SetHost(IN const char* host) = 0;
 };
 
 /*==================================================================================
@@ -168,6 +241,7 @@ protected:
 ===================================================================================*/
 interface HttpResponse
 {
+	virtual void		   Clear() = 0;
 	virtual HTTPStatusCode Status() const = 0;
 	virtual std::string	   Header() const = 0;
 	virtual std::string	   Content() const = 0;
@@ -178,9 +252,6 @@ interface HttpResponse
 ===================================================================================*/
 interface HttpClient
 {
-protected:
-	HttpClientProgress	m_progress;
-public:
 	virtual HTTPStatusCode Post(IN const RequestUri uri ,IN HttpRequest* request) = 0;
 	virtual HTTPStatusCode Get(IN const RequestUri uri,IN HttpRequest* request) = 0;
 };

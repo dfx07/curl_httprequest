@@ -755,7 +755,7 @@ int callback_recv_try(int code, LPVOID lParam)
 
 
 
-int main()
+int main2()
 {
     Socket sock;
     //std::cout <<"connect status : "<< sock.connect("https://vnexpress.net/", callback_retryconnect) << std::endl;
