@@ -16,9 +16,6 @@
     <Filter Include="Header Files\curl">
       <UniqueIdentifier>{99e69581-462a-456a-9367-825f53483de4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\test">
-      <UniqueIdentifier>{9dbcc493-0559-4e66-8881-8da2634c67dd}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="curltest.cpp">
@@ -38,8 +35,11 @@
     <ClInclude Include="include\kyhttp_curl.h">
       <Filter>Header Files\curl</Filter>
     </ClInclude>
-    <ClInclude Include="include\httprequest.h">
-      <Filter>Header Files\test</Filter>
+    <ClInclude Include="include\kyhttp_log.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\kyhttp_buffer.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

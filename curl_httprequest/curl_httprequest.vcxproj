@@ -144,9 +144,10 @@
     <ClCompile Include="curl_httprequest.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\httprequest.h" />
+    <ClInclude Include="include\kyhttp_buffer.h" />
     <ClInclude Include="include\kyhttp_curl.h" />
     <ClInclude Include="include\kyhttp.h" />
+    <ClInclude Include="include\kyhttp_log.h" />
     <ClInclude Include="include\utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
