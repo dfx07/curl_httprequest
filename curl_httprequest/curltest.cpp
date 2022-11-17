@@ -1,58 +1,62 @@
 #include "kyhttp_curl.h"
-#include "kyhttp_buffer.h"
-
 
 
 int main()
 {
-	//kyhttp::RequestUri uri;
-	////uri.uri = "https://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8";
-	//uri.uri = "https://www.google.com.sg/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
-	////uri.uri = "http://192.168.111.247:8080/auth/login";
+	kyhttp::Uri uri;
+	uri.set_location("https://webhook.site/1646c30b-303c-4422-8b17-e7b7065a0cee");
+	//uri.set_location("http://10.10.1.153:8080/secure/Dashboard.jspa");
+	//uri.set_location("https://www.google.com.sg/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png");
+	//uri.set_location("https://www.youtube.com");
 
-	//kyhttp::HttpClientOption option;
-	//kyhttp::WebProxy proxy;
-	//kyhttp::HttpCookie cookie;
+	uri.add_query_param("dfsad", 25.5f);
 
+	kyhttp::HttpClientOption option;
+	//option.m_auto_redirect = TRUE;
 
-	//kyhttp::HttpClient* client = new kyhttp::HttpClient();
-	//client->SetConfigunation(option);
-	//client->SettingProxy(proxy);
-	//client->SettingCookie(cookie);
+	kyhttp::WebProxy proxy;
 
-	//kyhttp::HttpRequest* request = new kyhttp::HttpRequest();
+	//proxy.m_hostname = "85.208.107.192";
+	//proxy.m_port = 1337;
 
+	kyhttp::HttpCookie cookie;
+
+	kyhttp::HttpClient* client = new kyhttp::HttpClient();
+	client->SetConfigunation(option);
+	client->SettingProxy(proxy);
+	client->SettingCookie(cookie);
+
+	kyhttp::HttpRequest* request = new kyhttp::HttpRequest();
+
+	//========== 1. POST test ============
 	//std::string data = "3242352352352623";
+	//kyhttp::HttpMultipartContent* content = new kyhttp::HttpMultipartContent();
+	//content->AddPartKeyValue("key1", "123445");
+	//content->AddPartKeyValue("key2", "123445");
+	//content->AddPartFile("key3", "simpson", data.c_str(), data.length());
 
-	////1. post example test
-	////kyhttp::CurlHttpMultipartContent* content = new kyhttp::CurlHttpMultipartContent();
-	////content->AddPartKeyValue("key1", "123445");
-	////content->AddPartKeyValue("key2", "123445");
-	////content->AddPartFile("key3", "simpson", data.c_str(), data.length());
-
-	////kyhttp::CurlHttpUrlEncodedContent* content = new kyhttp::CurlHttpUrlEncodedContent();
+	////kyhttp::HttpUrlEncodedContent* content = new kyhttp::HttpUrlEncodedContent();
 	////content->AddKeyValue("12", 1000);
 	////content->AddKeyValue("thuong", "ngo vanw thuong");
 
-	////2. get example test
+	//request->SetContent(content);
 
-	////client->SettingProxy();
-	////client->SettingCookie();
+	//kyhttp::HttpErrorCode err = client->Post(uri, request);
 
-	//kyhttp::HTTPStatusCode err = client->Post(uri, request);
-	//auto a = client->Response();
+	////========== 2. GET test ============
+	//client->SettingProxy();
+	//client->SettingCookie();
 
-	//kyhttp::HTTPCode code = a->GetStatusCode();
 
-	////request->SetAccept("xyz");
+	//request->SetContent(content);
 
-	////request->SetContent(content);
+	kyhttp::HttpErrorCode err = client->Request(kyhttp::GET, uri, request);
 
-	////client->Post(uri, request);
+	auto a = client->Response();
+	kyhttp::HTTPCode code = a->GetStatusCode();
 
-	////delete content;
-	//delete client;
-	//delete request;
+	delete client;
+	delete request;
 
 
 	//std::string data = "122324324532543655";
@@ -67,17 +71,6 @@ int main()
 
 	//std::cout << buff->buffer() << std::endl;
 
-	//KY_HTTP_ENTRY(L"%s" , L"thuowngf day");
-
-	//KY_HTTP_TRACE_ERROR(L"fadfsdf");
-	//KY_HTTP_TRACE_WARNING(L"fadfsdf");
-	//KY_HTTP_TRACE_ASSERT(L"fadfsdf");
-
-	//KY_HTTP_LEAVE(L"");
-
-	KYHTTP_LOG(L"thong tin khong dung = %d", 1234);
-
-	//KY_HTTP_LOG_INFO(L"GET - %s", L"thong tin chung");
 
 	getchar();
 }

@@ -41,5 +41,8 @@
     <ClInclude Include="include\kyhttp_buffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\kyhttp_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

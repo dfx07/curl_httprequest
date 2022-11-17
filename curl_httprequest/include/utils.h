@@ -6,7 +6,7 @@
 
 /******************************************************************************
 *! @brief  : Read bytes data file
-*! @author : thuong.nv - [Date] : 03/10/2022
+*! @author : thuong.nv - [Date] : 11/11/2022
 *! @return : int : nsize / data : buff
 ******************************************************************************/
 int read_data_file(IN const wchar_t* path, OUT void** data)

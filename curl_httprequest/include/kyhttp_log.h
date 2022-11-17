@@ -15,8 +15,8 @@
 
 enum tracker_state
 {
-	eLogger_None	 = 0x0000,
-	eLogger_Error	 = 0x0001,
+	eLogger_None	= 0x0000,
+	eLogger_Error	= 0x0001,
 	eLogger_Warning = 0x0002,
 	eLogger_Assert  = 0x0004,
 	eLogger_Info    = 0x0008,
@@ -27,11 +27,11 @@ enum tracker_state
 #define KY_HTTP_MAX_LENGTH_MSG_LOG 2048
 
 /******************************************************************************
-*! @brief  : tracker function support
+*! @brief  : convert mutiple byte to char
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-std::string logger_to_utf8(const wchar_t* mb, const int& nsize)
+static std::string logger_to_utf8(const wchar_t* mb, const int& nsize)
 {
 	std::string utf8;
 	utf8.resize(nsize + sizeof(wchar_t), 0);
@@ -42,11 +42,11 @@ std::string logger_to_utf8(const wchar_t* mb, const int& nsize)
 }
 
 /******************************************************************************
-*! @brief  : tracker get date time now in system local
+*! @brief  : get date time now in system local
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-void logger_get_datetime(wchar_t* buff)
+static void logger_get_datetime(wchar_t* buff)
 {
 	SYSTEMTIME SystemTime;
 	GetLocalTime(&SystemTime);
@@ -64,11 +64,11 @@ void logger_get_datetime(wchar_t* buff)
 }
 
 /******************************************************************************
-*! @brief  : Write msg to file tracker.log
+*! @brief  : save the text to file (log)
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-void logger_save(const wchar_t* text)
+static void logger_save(const wchar_t* text)
 {
 	static std::wstring filepath = L"";
 	if (filepath.empty())
@@ -115,7 +115,7 @@ void logger_save(const wchar_t* text)
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
+static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
 {
 	wchar_t fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(fmt, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
@@ -176,7 +176,7 @@ void logger_printf(int state, const char* filename, int linenum, BOOL savetime, 
 	logger_save(msg);
 }
 
-void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -189,7 +189,7 @@ void logger_printf(int state, const char* filename, int linenum, BOOL savetime, 
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
+static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
 {
 	wchar_t fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(fmt, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
@@ -222,7 +222,7 @@ void logger_printf_func(int begin, const char* filename, int linenum, BOOL savet
 	logger_save(msg);
 }
 
-void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
 {
 	va_list args;
 	va_start(args, format);

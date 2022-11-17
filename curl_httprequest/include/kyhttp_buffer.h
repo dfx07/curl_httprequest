@@ -32,8 +32,8 @@ public:
 		m_capacity = 0;
 	}
 
-	void*  buffer() { return m_data; }
-	size_t length() { return m_size; }
+	void*  buffer() const { return m_data; }
+	size_t length() const { return m_size; }
 
 private:
 

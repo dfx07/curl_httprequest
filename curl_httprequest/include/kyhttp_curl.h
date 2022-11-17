@@ -1,4 +1,3 @@
-#pragma once
 /*!**********************************************************************
 * @copyright Copyright (C) 2022 thuong.nv -email: mark.ngo@kohyoung.com.\n
 *            All rights reserved.
@@ -9,12 +8,16 @@
 *
 ** HTTP client implementation file using LibCurl.
 *************************************************************************/
+#pragma once
 
 #include <iostream>
 #include <string>
 #include <vector>
+#include <iomanip>
+#include <sstream>
 #include <curl/curl.h>
-#include "kyhttp.h"
+
+#include "kyhttp_types.h"
 #include "kyhttp_log.h"
 #include "kyhttp_buffer.h"
 
@@ -22,14 +25,17 @@ __BEGIN_NAMESPACE__
 
 
 #define CURL_STATICLIB
+
+#ifdef _DEBUG
 #pragma comment (lib, "libcurl_debug.lib")
+#else
+#pragma comment (lib, "libcurl.lib")
+#endif // _DEBUG
 
 #pragma comment (lib, "Normaliz.lib")
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Wldap32.lib")
 #pragma comment (lib, "advapi32.lib")
-
-
 
 #define SSL_CERTIFICATE_TYPE_PEM   "PEM"
 
@@ -46,15 +52,7 @@ __BEGIN_NAMESPACE__
 * Class HttpMultipartInfo
 * Base on curl_mime (curl)
 ===================================================================================*/
-
-
-class HttpRawContent : public HttpContent
-{
-
-};
-
-
-class HttpUrlEncodedContent : public HttpContent
+class IKeyValue
 {
 	struct KeyValueParam
 	{
@@ -62,37 +60,8 @@ class HttpUrlEncodedContent : public HttpContent
 		std::string value;
 	};
 
-private:
-	// It is cache for later use -> please don't delete
-	std::string		m_str_curl_content_cache;
+protected:
 	std::vector<KeyValueParam> m_keyvalue;
-
-private:
-	virtual HttpContentType GetType() const
-	{
-		return HttpContentType::application;
-	}
-
-	virtual int UpdateContent(IN void* base)
-	{
-		CURL* curl = static_cast<CURL*>(base);
-		if (!curl) return 0;
-
-		m_str_curl_content_cache.clear();
-
-		if (!m_keyvalue.empty())
-			m_str_curl_content_cache.append(m_keyvalue[0].key + '=' + m_keyvalue[0].value);
-
-		for (int i = 1; i < m_keyvalue.size(); i++)
-		{
-			m_str_curl_content_cache.append('&' + m_keyvalue[0].key + '=' + m_keyvalue[0].value);
-		}
-
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, m_str_curl_content_cache.c_str());
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, m_str_curl_content_cache.length());
-
-		return 1;
-	}
 
 public:
 	void AddKeyValue(const char* key, const char* value)
@@ -109,14 +78,102 @@ public:
 	{
 		std::string vl;
 		vl = value ? "true" : "false";
-		m_keyvalue.push_back({ key, vl});
+		m_keyvalue.push_back({ key, vl });
 	}
 
 	template<typename T, typename std::enable_if<std::is_arithmetic<T>::value, T>::type* = nullptr>
-	void AddKeyValue(const char* key, const T& value)
+	void AddKeyValue(const char* key, const T& value, const int& precision = 3)
 	{
-		std::string t = std::to_string(value);
+		std::string t = "";
+		if (std::is_floating_point<T>::value)
+		{
+			std::stringstream stream;
+			stream << std::fixed << std::setprecision(precision) << value;
+			t = stream.str();
+		}
+		else
+		{
+			t = std::to_string(value);
+		}
+
+		// remove trailing zero
+		while (!t.empty() && t.back() == '0')
+		{
+			t.pop_back();
+		}
 		m_keyvalue.push_back({ key, t });
+	}
+};
+
+class Uri : private IKeyValue
+{
+private:
+	std::string location;
+
+public:
+	template<typename T>
+	void add_query_param(const char* key, T value)
+	{
+		this->AddKeyValue(key, value);
+	}
+
+	void set_location(IN const char* loc)
+	{
+		location = loc;
+	}
+
+	std::string get_query_param() const
+	{
+		std::string query_param;
+
+		if (!m_keyvalue.empty())
+		{
+			query_param.append(m_keyvalue[0].key + "=" + m_keyvalue[0].value);
+		}
+		for (int i = 1; i < m_keyvalue.size(); i++)
+		{
+			const auto& param = m_keyvalue[i];
+			query_param.append("&" + param.key + "=" + param.value);
+		}
+		return query_param;
+	}
+
+	friend class HttpClient;
+};
+
+class HttpRawContent : public HttpContent
+{
+
+};
+
+class HttpUrlEncodedContent : public HttpContent, public IKeyValue
+{
+private:
+	// It is cache for later use -> please don't delete
+	std::string		m_str_curl_content_cache;
+
+private:
+	virtual HttpContentType GetType() const
+	{
+		return HttpContentType::urlencoded;
+	}
+
+	virtual void* InitContent(IN void* base)
+	{
+		CURL* curl = static_cast<CURL*>(base);
+		if (!curl) return NULL;
+
+		m_str_curl_content_cache.clear();
+
+		if (!m_keyvalue.empty())
+			m_str_curl_content_cache.append(m_keyvalue[0].key + '=' + m_keyvalue[0].value);
+
+		for (int i = 1; i < m_keyvalue.size(); i++)
+		{
+			m_str_curl_content_cache.append('&' + m_keyvalue[0].key + '=' + m_keyvalue[0].value);
+		}
+
+		return &m_str_curl_content_cache;
 	}
 };
 
@@ -131,7 +188,7 @@ class HttpMultipartContent : public HttpContent
 		struct // data field
 		{
 			const void* m_data;
-			size_t					m_size;
+			size_t		m_size;
 		};
 	};
 
@@ -140,21 +197,29 @@ private:
 	std::vector<HttpContentPart> m_part_list;
 
 private:
-	void Free()
+	void FreeCurlMine()
 	{
 		curl_mime_free(m_curl_mine);
 		m_curl_mine = NULL;
 	}
 
-	bool AppendPart(const HttpContentPart& part)
+	void InitCurlMine(IN CURL* curl)
 	{
-		if (!m_curl_mine) return false;
+		if (m_curl_mine)
+			this->FreeCurlMine();
+		m_curl_mine = curl_mime_init(curl);
+	}
+
+	INT AddPart(const HttpContentPart& part)
+	{
+		if (!m_curl_mine) return FALSE;
 
 		/* Fill in the file upload field */
 		auto field = curl_mime_addpart(m_curl_mine);
 
-		// [TODO] custom disposition_type define auto curl
+		if (!field) return FALSE;
 
+		// [TODO] custom disposition_type define auto curl
 		if (part.m_data)
 		{
 			curl_mime_name(field, part.m_name.c_str());
@@ -167,7 +232,7 @@ private:
 			curl_mime_data(field, part.m_value.c_str(), CURL_ZERO_TERMINATED);
 		}
 
-		return true;
+		return TRUE;
 	}
 
 public:
@@ -208,36 +273,21 @@ protected:
 		return HttpContentType::multipart;
 	}
 
-	virtual int UpdateContent(IN void* base)
+	virtual void* InitContent(IN void* base)
 	{
 		CURL* curl = static_cast<CURL*>(base);
-		if (!curl) return 0;
+		if (!curl) return NULL;
 
-		this->Free(); // clear old data
+		this->InitCurlMine(curl);
 
-		m_curl_mine = curl_mime_init(curl);
-
-		int i = 0;
-		for (i = 0; i < m_part_list.size(); i++)
+		for (int i = 0; i < m_part_list.size(); i++)
 		{
-			if (!this->AppendPart(m_part_list[i]))
-				break;
+			if (FALSE == this->AddPart(m_part_list[i]))
+			{
+				std::cout << "[erro] : add part failed" << std::endl;
+			}
 		}
 
-		// create part failed
-		if (i < m_part_list.size())
-		{
-			this->Free();
-			return 0;
-		}
-
-		curl_easy_setopt(curl, CURLOPT_MIMEPOST, m_curl_mine);
-
-		return 1;
-	}
-
-	virtual void* GetData()
-	{
 		return m_curl_mine;
 	}
 };
@@ -254,37 +304,21 @@ private: // curl header data
 	std::string		    m_buffer;
 
 public:
-	//void curl_header_append(const char* format, ...)
-	//{
-	//	const int nbufsize = 1024;
-	//	char buf[nbufsize];
-	//	memset(buf, 0, nbufsize);
-
-	//	// list paramater write file follow format
-	//	va_list args;
-	//	va_start(args, format);
-	//	vsnprintf(buf, nbufsize, format, args);
-	//	va_end(args);
-
-	//	// append buff to output
-	//	m_curl_slist = curl_slist_append(m_curl_slist, buf);
-	//}
 	~HttpRequest()
 	{
-		this->curl_header_free();
+		this->HeaderFree();
 	}
 
 private:
-	void curl_header_free()
+	void HeaderFree()
 	{
 		curl_slist_free_all(m_curl_slist);
 	}
 
-	int update_curl_header(CURL* curl, const HttpHeaderData& header_data)
+private:
+	void* CreateHeaderData()
 	{
-		if (!curl) return 0;
-
-		this->curl_header_free();
+		this->HeaderFree();
 
 		auto append_curl_header = [](curl_slist** curl_slist, const char* format, ...)
 		{
@@ -302,51 +336,40 @@ private:
 			*curl_slist = curl_slist_append(*curl_slist, buf);
 		};
 
-		if (header_data.m_content_type != HttpDetailContentType::Auto)
-			append_curl_header(&m_curl_slist, "Content-Type: %s", get_string_content_type(header_data.m_content_type).c_str());
-		if (!header_data.m_host.empty())
-			append_curl_header(&m_curl_slist, "Host: %s", header_data.m_host.c_str());
-		if (!header_data.m_accept.empty())
-			append_curl_header(&m_curl_slist, "Accept: %s", header_data.m_accept.c_str());
-		if (!header_data.m_accept_encoding.empty())
-			append_curl_header(&m_curl_slist, "Accept-encoding: %s", header_data.m_accept_encoding.c_str());
+		if (m_header_data.m_content_type != HttpDetailContentType::Auto)
+			append_curl_header(&m_curl_slist, "Content-Type: %s", get_string_content_type(m_header_data.m_content_type).c_str());
+		if (!m_header_data.m_host.empty())
+			append_curl_header(&m_curl_slist, "Host: %s", m_header_data.m_host.c_str());
+		if (!m_header_data.m_accept.empty())
+			append_curl_header(&m_curl_slist, "Accept: %s", m_header_data.m_accept.c_str());
+		if (!m_header_data.m_accept_encoding.empty())
+			append_curl_header(&m_curl_slist, "Accept-encoding: %s", m_header_data.m_accept_encoding.c_str());
+
+		for (int i = 0; i < m_header_data.m_extension.size(); i++)
+		{
+			append_curl_header(&m_curl_slist, m_header_data.m_extension[i].c_str());
+		}
 
 		append_curl_header(&m_curl_slist, "Connection: Keep-Alive");
 		append_curl_header(&m_curl_slist, "User-Agent: Brinicle");
 		append_curl_header(&m_curl_slist, "Pragma: no-cache");
 		append_curl_header(&m_curl_slist, "Cache-Control: no-cache");
 
-		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, (curl_slist*)m_curl_slist);
+		return m_curl_slist;
 	}
 
-	int update_curl_content(CURL* curl, HttpContent* content)
+	void* CreateContentData(IN void* base, IN HttpContentType& type)
 	{
-		if (!content) return 0;
+		CURL* curl = static_cast<CURL*>(base);
+		if (!m_content || !curl)
+			return NULL;
 
-		return content->UpdateContent(curl);
+		void* content = m_content->InitContent(curl);
+
+		type = m_content->GetType();
 	}
 
 	friend class HttpClient;
-
-private:
-
-	int update_curl_request(HttpMethod method, CURL* curl)
-	{
-		if (!update_curl_header(curl, m_header_data))
-		{
-			return 0;
-		}
-
-		if (HttpMethod::GET != method)
-		{
-			if (!update_curl_content(curl, m_content))
-			{
-				return 0;
-			}
-		}
-
-		return 1;
-	}
 
 public:
 
@@ -387,9 +410,10 @@ class HttpResponse
 private:
 	LONG			m_status;
 
-	std::string		m_header;
-	std::string		m_content;
+	HttpBuffer		m_header;
+	HttpBuffer		m_content;
 
+	std::string		m_redirect_url;
 protected:
 
 public:
@@ -406,6 +430,7 @@ protected:
 		m_status = HTTPCode::NODEFINE;
 		m_header.clear();
 		m_content.clear();
+		m_redirect_url.clear();
 	}
 
 public:
@@ -415,14 +440,14 @@ public:
 		return static_cast<HTTPCode>(m_status);
 	}
 
-	virtual std::string	   Header() const
+	virtual const HttpBuffer* Header() const
 	{
-		return m_header;
+		return &m_header;
 	}
 
-	virtual std::string	   Content() const
+	virtual const HttpBuffer* Content() const
 	{
-		return m_content;
+		return &m_content;
 	}
 
 	friend class HttpClient;
@@ -444,19 +469,23 @@ private:
 
 	HttpClientProgress	m_progress;
 
-	float				m_time_send;
-	float				m_speed_send;
-	float				m_speed_recv;
+	double				m_request_time;
+	float				m_sent_size;
+
+	int					m_use_openssl = false; // curl build = schannel = false | openssl = true
+	int					m_use_custom_ssl = false;
+
 public:
 	HttpClient(): m_curl(nullptr),
-		m_request(nullptr),
-		m_response(nullptr)
+		m_request(nullptr), m_response(nullptr),
+		m_use_openssl(false),
+		m_use_custom_ssl(false)
 	{
 
 	}
 	~HttpClient()
 	{
-		this->Destroy();
+		this->DestroyCurl();
 	}
 
 private:
@@ -491,39 +520,37 @@ private:
 	{
 		if (user_data)
 		{
-			((std::string*)user_data)->append((char*)contents, size * nmemb);
+			((HttpBuffer*)user_data)->append((char*)contents, size * nmemb);
 		}
 		return size * nmemb;
 	}
 
 private:
 	/******************************************************************************
-	*! @brief  : setup body data package
+	*! @brief  : initialize , destroy curl
 	*! @author : thuong.nv - [Date] : 03/10/2022
 	*! @parameter:	header : header info struct
-	*! @return : HTTPRequestCode : OK , FAILED
+	*! @return : bool : TRUE / FALSE
 	******************************************************************************/
-	bool Init()
+	bool InitCurl()
 	{
-		if (m_curl) this->Destroy();
+		if (m_curl) this->DestroyCurl();
 
-		m_curl	   = curl_easy_init();
-		
+		m_curl = curl_easy_init();
 		return true;
 	}
 
-	void Destroy()
+	void DestroyCurl()
 	{
 		curl_easy_cleanup(m_curl);
-		m_curl	   = nullptr;
-		m_response = nullptr;
+		m_curl = nullptr;
 	}
 
-	static KYHttpErrorCode ConvertCURLCodeToHTTPCode(CURLcode curl_code)
+	static HttpErrorCode ConvertCURLCodeToHTTPCode(CURLcode curl_code)
 	{
 	    //DEBUG_ENTRY("CURLcode curl_code = <%d>", curl_code)
 	
-	    KYHttpErrorCode kyhttp_error_code;
+		HttpErrorCode kyhttp_error_code = KY_HTTP_FAILED;
 	
 	    switch (curl_code)
 	    {
@@ -581,94 +608,133 @@ private:
 	    return kyhttp_error_code;
 	}
 
-	void CreateConfig(const HttpClientOption& option)
+	HttpErrorCode CreateConfig(const HttpClientOption& option)
 	{
+		CURLcode curlcode = CURLcode::CURLE_OK;
+
 		if (m_option.m_show_request)
-		curl_easy_setopt(m_curl, CURLOPT_VERBOSE, 1L);
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_VERBOSE, 1L));
 
 		if (option.m_connect_timout > 0)
-			curl_easy_setopt(m_curl, CURLOPT_CONNECTTIMEOUT_MS, option.m_connect_timout);
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_CONNECTTIMEOUT_MS, option.m_connect_timout));
 
 		// Internal CURL progressmeter must be disabled if we provide our own callback
-		curl_easy_setopt(m_curl, CURLOPT_NOPROGRESS, FALSE);
-		curl_easy_setopt(m_curl, CURLOPT_PROGRESSDATA, &m_progress);
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_NOPROGRESS, FALSE));
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_PROGRESSDATA, &m_progress));
+
 		// Install the callback function
-		curl_easy_setopt(m_curl, CURLOPT_PROGRESSFUNCTION, &HttpClient::HttpProgressFunc);
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_PROGRESSFUNCTION, &HttpClient::HttpProgressFunc));
 
 		if (option.m_max_upload_speed > 0)
 		{
 			// limit upload kb.s
 			curl_off_t max_speed = 1000 * m_option.m_max_upload_speed; // 25kB/s
-			curl_easy_setopt(m_curl, CURLOPT_MAX_SEND_SPEED_LARGE, max_speed);
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MAX_SEND_SPEED_LARGE, max_speed));
 		}
 		if (option.m_max_download_speed > 0)
 		{
 			// limit download kb.s
 			curl_off_t max_speed = 1000 * m_option.m_max_download_speed; // 25kB/s
-			curl_easy_setopt(m_curl, CURLOPT_MAX_RECV_SPEED_LARGE, m_option.m_max_download_speed);
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MAX_RECV_SPEED_LARGE, m_option.m_max_download_speed));
 		}
+
+		// auto redirected
+		if (TRUE == option.m_auto_redirect)
+		{
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_FOLLOWLOCATION, 0L));
+		}
+
+		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlcode);
+		return retcode;
 	}
 
-	void CreateResponse()
+	HttpErrorCode InitClearResponse(int bForceCreate = false)
 	{
-		if (m_response)
-		{
-			m_response->Clear();
-
-			curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, &HttpClient::HttpReceiveResponseFunc);
-			curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &m_response->m_header);
-			curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &HttpClient::HttpReceiveResponseFunc);
-			curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_response->m_content);
-		}
-		else
+		if (bForceCreate || !m_response)
 		{
 			m_response = std::make_shared<HttpResponse>();
 		}
+		else // clear old data
+		{
+			m_response->Clear();
+		}
+
+		curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, &HttpClient::HttpReceiveResponseFunc);
+		curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &m_response->m_header);
+		curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &HttpClient::HttpReceiveResponseFunc);
+		curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_response->m_content);
+
+		return HttpErrorCode::KY_HTTP_OK;
 	}
 
-	void CreateSSLOption(const SSLSetting* ssl_setting)
+	HttpErrorCode CreateSSLOption(const SSLSetting* ssl_setting)
 	{
-		//// Set server certificate.
-		//curl_easy_setopt(m_curl, CURLOPT_SSLCERTTYPE, SSL_CERTIFICATE_TYPE_PEM);
-		//curl_easy_setopt(m_curl, CURLOPT_SSL_CTX_DATA, configuration->mindsphere_certificate);
-		//curl_easy_setopt(m_curl, CURLOPT_SSL_CTX_FUNCTION, *_ssl_context_callback);
-		//curl_easy_setopt(m_curl, CURLOPT_SSL_CIPHER_LIST, SUPPORTED_CIPHERS_LIST);
-		//curl_easy_setopt(m_curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-		//
-		// Verify the server's SSL certificate.
-		curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 2);
-		curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1);
+		// Verify manual confirmation using file *.pem
+		if (m_use_openssl)
+		{
+			curl_easy_setopt(m_curl, CURLOPT_PROXY_SSLCERTTYPE, SSL_CERTIFICATE_TYPE_PEM);
+			curl_easy_setopt(m_curl, CURLOPT_PROXY_SSL_VERIFYPEER, 1);
+			curl_easy_setopt(m_curl, CURLOPT_PROXY_SSL_VERIFYHOST, 1);
+			curl_easy_setopt(m_curl, CURLOPT_PROXY_CAINFO, "./cacert.pem");
+		}
+		// libcurl schanel build : Verify window certificate
+		else
+		{
+			// Verify the server's SSL certificate.
+			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 1);
+			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1);
+		}
+
+		return HttpErrorCode::KY_HTTP_OK;
 	}
 
-	void CreateProxyOption(const WebProxy* proxy)
+	HttpErrorCode CreateProxyOption(const WebProxy* proxy)
 	{
 		// Set proxy options if proxy is used.
-		if (!proxy->m_hostname.empty())
+		if (!m_proxy.m_hostname.empty())
 		{
-		    curl_easy_setopt(m_curl, CURLOPT_PROXY, proxy->m_hostname);
-		    curl_easy_setopt(m_curl, CURLOPT_PROXYPORT, proxy->m_port);
-		    curl_easy_setopt(m_curl, CURLOPT_PROXYTYPE, proxy->m_proxy_type);
-		
-		    if (!proxy->m_username.empty())
+			curl_easy_setopt(m_curl, CURLOPT_PROXY, m_proxy.m_hostname.c_str());
+			curl_easy_setopt(m_curl, CURLOPT_PROXYPORT, m_proxy.m_port);
+			
+			// use libcurl build openssl
+			if (m_use_openssl)
+			{
+				curl_easy_setopt(m_curl, CURLOPT_PROXYTYPE, m_proxy.m_proxy_type);
+				curl_easy_setopt(m_curl, CURLOPT_PROXY_SSLCERTTYPE, SSL_CERTIFICATE_TYPE_PEM);
+				curl_easy_setopt(m_curl, CURLOPT_PROXY_CAINFO, "./cacert.pem");
+			}
+			// use libcurl build schannel
+			else
+			{
+				// Schannel not support HTTPs-proxy
+				auto proxytype = m_proxy.m_proxy_type == kyhttp::KY_PROXY_HTTPS ?
+					kyhttp::KY_PROXY_HTTP : m_proxy.m_proxy_type;
+				curl_easy_setopt(m_curl, CURLOPT_PROXYTYPE, proxytype);
+			}
+
+		    if (!m_proxy.m_username.empty())
 		    {
-	            curl_easy_setopt(m_curl, CURLOPT_PROXYUSERNAME, proxy->m_username.c_str());
-		        curl_easy_setopt(m_curl, CURLOPT_PROXYPASSWORD, proxy->m_password.c_str());
+	            curl_easy_setopt(m_curl, CURLOPT_PROXYUSERNAME, m_proxy.m_username.c_str());
+		        curl_easy_setopt(m_curl, CURLOPT_PROXYPASSWORD, m_proxy.m_password.c_str());
 		    }
 		}
+		return HttpErrorCode::KY_HTTP_OK;
 	}
 
 	/******************************************************************************
-	*! @brief  : setup body data package
-	*! @author : thuong.nv - [Date] : 03/10/2022
-	*! @parameter:	header : header info struct
-	*! @return : HTTPRequestCode : OK , FAILED
+	*! @brief  : curl initialization and related settings
+	*! @author : thuong.nv - [Date] : 11/11/2022
+	*! @parameter:	method : GET / POST
+	*! @return : HttpErrorCode 
 	******************************************************************************/
-	HTTPStatusCode CreateHttpRequest(IN HttpMethod method)
+	HttpErrorCode InitHttpRequest(IN HttpMethod method)
 	{
-		if (!Init())
+		HttpErrorCode err_code = HttpErrorCode::KY_HTTP_OK;
+
+		if (!InitCurl())
 		{
-			std::cout << "[err] : init_curl failed !" << std::endl;
-			return HTTPStatusCode::CREATE_FAILED;
+			KY_HTTP_LOG_ERROR(L"[err] : init_curl failed !");
+			return HttpErrorCode::KY_HTTP_FAILED;
 		}
 
 		if (method == HttpMethod::POST)
@@ -676,46 +742,134 @@ private:
 		else 
 			curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L); // Default get
 
-		this->CreateConfig(m_option);
-		this->CreateSSLOption(&m_SSLSetting);
-		this->CreateProxyOption(&m_proxy);
-		this->CreateResponse();
+		PASS_ERROR_CODE(err_code, this->CreateConfig(m_option));
+		PASS_ERROR_CODE(err_code, this->CreateSSLOption(&m_SSLSetting));
+		PASS_ERROR_CODE(err_code, this->CreateProxyOption(&m_proxy));
+		PASS_ERROR_CODE(err_code, this->InitClearResponse());
 
-		return HTTPStatusCode::OK;
+		KY_HTTP_LOG_INFO(L"Init Http request. Result code : <%u>", err_code);
+		return err_code;
 	}
 
-	HTTPStatusCode UpdateRequest(IN HttpMethod method, IN HttpRequest* request)
+	/******************************************************************************
+	*! @brief  : setup header and content data for httprequest
+	*! @author : thuong.nv - [Date] : 11/11/2022
+	*! @parameter:	method : GET / POST
+	*! @parameter:	HttpRequest : Contains header and content information
+	*! @return : HttpErrorCode
+	******************************************************************************/
+	HttpErrorCode CreateRequestData(IN HttpMethod method, IN HttpRequest* request)
 	{
 		if (!request)
-			return HTTPStatusCode::FAILED;
+			return HttpErrorCode::KY_HTTP_FAILED;
 
-		if (!request->update_curl_request(method, m_curl))
+		CURLcode curlcode = CURLE_OK;
+
+		if (HttpMethod::GET == method && NULL == request)
 		{
-			return HTTPStatusCode::FAILED;
+			return HttpErrorCode::KY_HTTP_OK;
 		}
 
-		return HTTPStatusCode::OK;
+		// create header request data
+		void* header_request = request->CreateHeaderData();
+		curl_slist* header = static_cast<curl_slist*>(header_request);
+
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, header));
+
+		// create content request data
+		HttpContentType type = HttpContentType::none;
+		void* content_request = request->CreateContentData(m_curl, type);
+
+		if (HttpContentType::multipart == type)
+		{
+			curl_mime* data_post = static_cast<curl_mime*>(content_request);
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MIMEPOST, data_post));
+		}
+		else if (HttpContentType::urlencoded == type)
+		{
+			std::string* data = static_cast<std::string*>(content_request);
+			if (data)
+			{
+				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, data->c_str()));
+				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, data->length()) );
+			}
+		}
+
+		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlcode);
+		KY_HTTP_LOG_INFO(L"Create request data done. Result code = <%u>", retcode);
+
+		return retcode;
 	}
 
 private:
-	HTTPStatusCode SendRequest(IN const RequestUri& uri)
+	HttpErrorCode SendRequest(IN const Uri& uri, BOOL redict = FALSE)
 	{
 		if (!m_curl)
-			return HTTPStatusCode::FAILED;
+			return HttpErrorCode::KY_HTTP_FAILED;
+		std::string link = uri.location;
 
-		curl_easy_setopt(m_curl, CURLOPT_URL, uri.uri.c_str());
+		std::string query_param = uri.get_query_param();
+		if (!query_param.empty())
+			link.append("?" + query_param);
+
+		curl_easy_setopt(m_curl, CURLOPT_URL, link.c_str());
 
 		CURLcode res = curl_easy_perform(m_curl);
+		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(res);
 
-		curl_easy_getinfo(m_curl, CURLINFO_SPEED_UPLOAD, &m_speed_send);
-		curl_easy_getinfo(m_curl, CURLINFO_TOTAL_TIME, &m_time_send);
-		curl_easy_getinfo(m_curl, CURLINFO_SPEED_DOWNLOAD, &m_speed_recv);
+		if (retcode != HttpErrorCode::KY_HTTP_OK)
+		{
+			KY_HTTP_LOG_INFO(L"Send request failed. Result code = <%u>, Curl code = <%u> , Redirect = <%s>",
+				retcode, res, redict ? L"TRUE" : L"FALSE");
+			return retcode;
+		}
+
+		curl_off_t lrequest_size = 0; curl_off_t lrequest_time = 0;
+		double upload_size =0.;
+
+		// get send request infomation
+		if (curl_easy_getinfo(m_curl, CURLINFO_REQUEST_SIZE, &lrequest_size) == CURLE_OK)
+		{
+			m_sent_size += lrequest_size;
+		}
+		if (curl_easy_getinfo(m_curl, CURLINFO_SIZE_UPLOAD, &upload_size) == CURLE_OK)
+		{
+			m_sent_size += upload_size;
+		}
+
+		if (curl_easy_getinfo(m_curl, CURLINFO_TOTAL_TIME_T, &lrequest_time) == CURLE_OK)
+		{
+			m_request_time += double(lrequest_time)/ 1000000;
+		}
 
 		long http_code = 0;
 		curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &http_code);
+
 		m_response->m_status = http_code;
 
-		return HTTPStatusCode::OK;
+		if (http_code == HTTPCode::MOVED_PERMANENTLY)
+		{
+			this->InitClearResponse();
+			
+			char* url = NULL;
+			curl_easy_getinfo(m_curl, CURLINFO_REDIRECT_URL, &url);
+			if (url) m_response->m_redirect_url = url;
+
+			if (m_option.m_auto_redirect)
+			{
+				Uri redirect_uri = uri;
+				redirect_uri.location = m_response->m_redirect_url;
+				retcode = SendRequest(redirect_uri, TRUE);
+			}
+		}
+
+		if (!redict)
+		{
+			auto str_size = bytes_to_text(m_sent_size);
+			KY_HTTP_LOG_INFO(L"HTTP request sent. Result code = <%u> [duration = <%.2f second>, size = <%s>] ",
+				retcode, m_request_time, str_size.c_str());
+		}
+		return retcode;
 	}
 public:
 	virtual void SetConfigunation(IN HttpClientOption option)
@@ -734,9 +888,9 @@ public:
 	}
 
 public:
-	virtual HTTPStatusCode Request(IN HttpMethod method, IN const RequestUri uri, IN HttpRequest* request)
+	virtual HttpErrorCode Request(IN HttpMethod method, IN const Uri uri, IN HttpRequest* request)
 	{
-		HTTPStatusCode request_code = HTTPStatusCode::FAILED;
+		HttpErrorCode request_code = HttpErrorCode::KY_HTTP_FAILED;
 
 		switch (method)
 		{
@@ -753,41 +907,42 @@ public:
 		return request_code;
 	}
 
-	virtual HTTPStatusCode Post(IN const RequestUri uri, IN HttpRequest* request)
+	virtual HttpErrorCode Post(IN const Uri uri, IN HttpRequest* request)
 	{
 		if (nullptr == request)
 		{
 			std::cout << "[err-post] - Post request nullptr" << std::endl;
-			return HTTPStatusCode::FAILED;
+			return HttpErrorCode::KY_HTTP_FAILED;
 		}
 
-		if (this->CreateHttpRequest(HttpMethod::POST) != HTTPStatusCode::OK)
+		if (HttpErrorCode::KY_HTTP_OK != this->InitHttpRequest(HttpMethod::POST))
 		{
-			std::cout << "[err] POST - Create engine failed !" << std::endl;
-			return HTTPStatusCode::CREATE_FAILED;
+			KY_HTTP_LOG_ERROR(L" ->[Failed] init http request failed !");
+			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
-		if (this->UpdateRequest(HttpMethod::POST, request) != HTTPStatusCode::OK)
+		if (this->CreateRequestData(HttpMethod::POST, request) != HTTPStatusCode::OK)
 		{
-			std::cout << "[err] POST - Create request failed !" << std::endl;
-			return HTTPStatusCode::CREATE_FAILED;
+			KY_HTTP_LOG_ERROR(L" ->[Failed] set request parameter failed !");
+			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
 		return SendRequest(uri);
 	}
 
 
-	virtual HTTPStatusCode Get(IN const RequestUri uri, IN HttpRequest* request)
+	virtual HttpErrorCode Get(IN const Uri uri, IN HttpRequest* request)
 	{
-		if (this->CreateHttpRequest(HttpMethod::GET) != HTTPStatusCode::OK)
+		if (HttpErrorCode::KY_HTTP_OK != this->InitHttpRequest(HttpMethod::GET))
 		{
-			return HTTPStatusCode::CREATE_FAILED;
+			KY_HTTP_LOG_ERROR(L" ->[Failed] init http request failed !");
+			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
-		if (request && this->UpdateRequest(HttpMethod::GET, request) != HTTPStatusCode::OK)
+		if (request && this->CreateRequestData(HttpMethod::GET, request) != HttpErrorCode::KY_HTTP_OK)
 		{
-			std::cout << "[err] GET - Create request failed !" << std::endl;
-			return HTTPStatusCode::CREATE_FAILED;
+			KY_HTTP_LOG_ERROR(L" ->[Failed] set request parameter failed !");
+			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
 		return SendRequest(uri);
@@ -797,7 +952,6 @@ public:
 	{
 		return m_response;
 	}
-
 
 	friend class HttpReponse;
 };
