@@ -13,8 +13,8 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\curl">
-      <UniqueIdentifier>{99e69581-462a-456a-9367-825f53483de4}</UniqueIdentifier>
+    <Filter Include="Header Files\common">
+      <UniqueIdentifier>{bb7df854-0390-48eb-9912-33fc029b9fa7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -26,23 +26,26 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\kyhttp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\kyhttp_curl.h">
-      <Filter>Header Files\curl</Filter>
+    <ClInclude Include="include\kyhttpdef.h">
+      <Filter>Header Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="include\kyhttp_log.h">
+    <ClInclude Include="include\kyhttp_types.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\kyhttp_curl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\kyhttp_buffer.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
-    <ClInclude Include="include\kyhttp_types.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="include\kyhttp_utils.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\kyhttp_logger.h">
+      <Filter>Header Files\common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

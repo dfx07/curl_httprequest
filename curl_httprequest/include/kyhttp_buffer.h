@@ -1,4 +1,4 @@
-/*!**********************************************************************
+﻿/*!**********************************************************************
 * @copyright Copyright (C) 2022 thuong.nv -email: mark.ngo@kohyoung.com.\n
 *            All rights reserved.
 *************************************************************************
@@ -27,15 +27,24 @@ public:
 
 	~HttpBuffer()
 	{
-		delete[] m_data;
-		m_size = 0;
-		m_capacity = 0;
+		this->free();
 	}
 
 	void*  buffer() const { return m_data; }
 	size_t length() const { return m_size; }
 
 private:
+	/******************************************************************************
+	*! @brief     : free memory 
+	*! @parameter : void
+	*! @author    : thuong.nv - [Date] : 11/11/2022
+	******************************************************************************/
+	void free()
+	{
+		delete[] m_data;
+		m_size = 0;
+		m_capacity = 0;
+	}
 
 	/******************************************************************************
 	*! @brief     : allocate memory
@@ -127,11 +136,29 @@ public:
 		return &m_data[i];
 	}
 
-	void append(const void* data, unsigned int nsize)
+	int append(const void* data, unsigned int nsize)
 	{
-		int ok = alloc_append(nsize + 2);
-		memcpy(m_data + m_size, data, nsize);
-		m_size += nsize;
+		int alloc_ok = alloc_append(nsize + 2);
+		if (alloc_ok)
+		{
+			memcpy(m_data + m_size, data, nsize);
+			m_size += nsize;
+			return nsize;
+		}
+		return 0;
+	}
+
+	int set(const void* data, unsigned int nsize)
+	{
+		int alloc_ok = alloc(nsize + 2, false);
+		if (alloc_ok)
+		{
+			memcpy(m_data, data, nsize);
+
+			m_size = nsize;
+			return nsize;
+		}
+		return 0;
 	}
 
 	void reserve(unsigned int nsize)

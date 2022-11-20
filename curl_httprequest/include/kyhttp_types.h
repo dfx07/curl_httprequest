@@ -14,26 +14,10 @@
 #include <string>
 #include <memory>
 
-
-#define __BEGIN_NAMESPACE__ namespace kyhttp {
-#define __END___NAMESPACE__ }
+#include "kyhttpdef.h"
 
 
 __BEGIN_NAMESPACE__
-
-
-#ifndef interface
-#define interface struct
-#endif
-
-#ifndef IN
-#define IN
-#endif
-
-#ifndef OUT
-#define OUT
-#endif
-
 
 interface HttpClient;
 typedef std::shared_ptr<HttpClient> HttpClienttPtr;
@@ -81,7 +65,6 @@ enum HTTPStatusCode
 	CREATE_FAILED			= 0x00032,
 };
 
-#define KY_HTTP_ERR_BEGIN 0x0111122
 enum HttpErrorCode
 {
 	KY_HTTP_FAILED						= 99999,
@@ -107,7 +90,7 @@ enum HttpContentType
 	none		,
 	urlencoded	,
 	multipart	,
-	image		,
+	raw			,
 	audio		,
 };
 
@@ -198,42 +181,6 @@ static std::string get_string_content_type(HttpDetailContentType type)
 	return "";
 }
 
-static std::wstring bytes_to_text(unsigned int bytes)
-{
-	const int nsizebuff = 50;
-	wchar_t buff[nsizebuff];
-	memset(buff, 0, nsizebuff);
-
-	if (bytes >= 1073741824) // GB
-	{
-		swprintf(buff, nsizebuff, L"%.2ld GB", bytes / 1073741824);
-	}
-	else if (bytes >= 1048576)
-	{
-		swprintf(buff, nsizebuff, L"%.2ld MB", bytes / 1048576);
-	}
-	else if (bytes >= 1024)
-	{
-		swprintf(buff, nsizebuff, L"%.2ld KB", bytes / 1024);
-
-	}
-	else if (bytes > 1)
-	{
-		swprintf(buff, nsizebuff, L"%.2ld bytes", bytes);
-	}
-	else if (bytes == 1)
-	{
-		swprintf(buff, nsizebuff, L"1 byte");
-	}
-	else
-	{
-		swprintf(buff, nsizebuff, L"0 byte");
-	}
-
-	return std::wstring(buff);
-}
-
-
 enum HttpMethod
 {
 	POST,
@@ -246,7 +193,7 @@ enum ProxyType
 	KY_PROXY_HTTPS   =  CURLPROXY_HTTPS,
 	KY_PROXY_SOCKS4  =  CURLPROXY_SOCKS4,
 	KY_PROXY_SOCKS4A =  CURLPROXY_SOCKS4A,
-	KY_PROXY_SOCKS5  = CURLPROXY_SOCKS5,
+	KY_PROXY_SOCKS5  =  CURLPROXY_SOCKS5,
 };
 
 
@@ -262,14 +209,14 @@ struct WebProxy
 
 struct SSLSetting
 {
-
+	bool m_disable_verify_ssl_certificate  = false; // verify ssl certificate
+	bool m_disable_verify_host_certificate = false; // verify host certificate
 };
 
 struct HttpCookie
 {
 
 };
-
 
 struct HttpRequestOption
 {
@@ -282,11 +229,11 @@ struct HttpRequestOption
 struct HttpClientOption
 {
 	bool	m_show_request = true;		// show request
-	int		m_retry_connet;				// count
-	float	m_connect_timout;			// milliseconds
+	INT		m_retry_connet;				// count
+	LONG	m_connect_timout;			// milliseconds
 	float	m_max_download_speed;		// kb/s
 	float	m_max_upload_speed;			// kb/s
-	int		m_auto_redirect = FALSE;	// auto redict  | TRUE / FALSE
+	BOOL	m_auto_redirect = FALSE;	// auto redict  | TRUE / FALSE
 };
 
 struct HttpClientProgress
@@ -330,10 +277,111 @@ interface IHttpClient
 	virtual HttpErrorCode   Post(IN const Uri uri, IN HttpRequest* request) = 0;
 	virtual HttpErrorCode   Get(IN const Uri uri, IN HttpRequest* request) = 0;
 
-	virtual void			SetConfigunation(IN HttpClientOption option) = 0;
-	virtual void			SettingProxy(IN WebProxy& proxy_info) = 0;
+	virtual void			Configunation(IN HttpClientOption& option) = 0;
+	virtual void			SettingProxy(IN WebProxy& proxy_info)  = 0;
+	virtual void			SettingSSL(IN SSLSetting& ssl_setting) = 0;
 	virtual void			SettingCookie(IN HttpCookie& cookie) = 0;
 	virtual HttpResponsePtr Response() const = 0;
+};
+
+/*==================================================================================
+* class IKeyValue : List key value 
+===================================================================================*/
+class IKeyValue
+{
+	struct KeyValueParam;
+	typedef std::vector<KeyValueParam> KEY_VALUE_LIST;
+
+	struct KeyValueParam
+	{
+		std::string key;
+		std::string value;
+	};
+
+protected:
+	KEY_VALUE_LIST m_keyvalue;
+
+public:
+	void AddKeyValue(const char* key, const char* value)
+	{
+		m_keyvalue.push_back({ key, value });
+	}
+
+	void AddKeyValue(const char* key, const std::string& value)
+	{
+		m_keyvalue.push_back({ key, value });
+	}
+
+	void AddKeyValue(const char* key, const bool value)
+	{
+		std::string vl;
+		vl = value ? "true" : "false";
+		m_keyvalue.push_back({ key, vl });
+	}
+
+	template<typename T, typename std::enable_if<std::is_arithmetic<T>::value, T>::type* = nullptr>
+	void AddKeyValue(const char* key, const T& value, const int& precision = 3)
+	{
+		std::string t = "";
+		if (std::is_floating_point<T>::value)
+		{
+			std::stringstream stream;
+			stream << std::fixed << std::setprecision(precision) << value;
+			t = stream.str();
+		}
+		else
+		{
+			t = std::to_string(value);
+		}
+
+		// remove trailing zero
+		while (!t.empty() && t.back() == '0')
+		{
+			t.pop_back();
+		}
+		m_keyvalue.push_back({ key, t });
+	}
+};
+
+/*==================================================================================
+* class Uri : Uniform Resource Identifier
+* Include : + location
+*			+ query param
+===================================================================================*/
+class Uri : private IKeyValue
+{
+private:
+	std::string		location;
+
+public:
+	template<typename T>
+	void add_query_param(const char* key, T value)
+	{
+		this->AddKeyValue(key, value);
+	}
+
+	void set_location(IN const char* loc)
+	{
+		location = loc;
+	}
+
+	std::string get_query_param() const
+	{
+		std::string query_param;
+
+		if (!m_keyvalue.empty())
+		{
+			query_param.append(m_keyvalue[0].key + "=" + m_keyvalue[0].value);
+		}
+		for (int i = 1; i < m_keyvalue.size(); i++)
+		{
+			const auto& param = m_keyvalue[i];
+			query_param.append("&" + param.key + "=" + param.value);
+		}
+		return query_param;
+	}
+
+	friend class HttpClient;
 };
 
 __END___NAMESPACE__

@@ -1,10 +1,15 @@
 #include "kyhttp_curl.h"
 
 
+//test website use : https://badssl.com/
+
 int main()
 {
 	kyhttp::Uri uri;
-	uri.set_location("https://webhook.site/1646c30b-303c-4422-8b17-e7b7065a0cee");
+	//uri.set_location("https://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8");
+	//uri.set_location("https://expired.badssl.com/"); // ssl expired certificate
+	//uri.set_location("https://wrong.host.badssl.com/"); // wrong expired certificate
+	uri.set_location("www.google.com:81"); // request timeout
 	//uri.set_location("http://10.10.1.153:8080/secure/Dashboard.jspa");
 	//uri.set_location("https://www.google.com.sg/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png");
 	//uri.set_location("https://www.youtube.com");
@@ -13,6 +18,8 @@ int main()
 
 	kyhttp::HttpClientOption option;
 	//option.m_auto_redirect = TRUE;
+	option.m_connect_timout = 1000; //ms
+	option.m_retry_connet = 3;
 
 	kyhttp::WebProxy proxy;
 
@@ -21,9 +28,14 @@ int main()
 
 	kyhttp::HttpCookie cookie;
 
+	kyhttp::SSLSetting sslsetting;
+	//sslsetting.m_disable_verify_ssl_certificate = true;
+	//sslsetting.m_disable_verify_host_certificate = true;
+
 	kyhttp::HttpClient* client = new kyhttp::HttpClient();
-	client->SetConfigunation(option);
+	client->Configunation(option);
 	client->SettingProxy(proxy);
+	client->SettingSSL(sslsetting);
 	client->SettingCookie(cookie);
 
 	kyhttp::HttpRequest* request = new kyhttp::HttpRequest();
@@ -43,14 +55,20 @@ int main()
 
 	//kyhttp::HttpErrorCode err = client->Post(uri, request);
 
+	std::string data = "{ \"ten\" : \"ngo van thuong\"}";
+
+	kyhttp::HttpRawContent* content = new kyhttp::HttpRawContent();
+	content->SetRawType(kyhttp::HttpRawContent::html);
+	content->SetRawData(data.c_str(), data.length());
+
 	////========== 2. GET test ============
 	//client->SettingProxy();
 	//client->SettingCookie();
 
 
-	//request->SetContent(content);
+	request->SetContent(content);
 
-	kyhttp::HttpErrorCode err = client->Request(kyhttp::GET, uri, request);
+	kyhttp::HttpErrorCode err = client->Request(kyhttp::POST, uri, request);
 
 	auto a = client->Response();
 	kyhttp::HTTPCode code = a->GetStatusCode();

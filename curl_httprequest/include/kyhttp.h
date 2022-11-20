@@ -11,7 +11,7 @@
 #endif
 #endif
 
-#include "kyhttp_log.h"
+#include "kyhttp_logger.h"
 #include "kyhttp_types.h"
 #include "kyhttp_curl.h"
 
@@ -31,7 +31,7 @@ KYHTTP_API void __cdecl KyHttp_Destroy(PHANDLE phHandle)
 	}
 }
 
-KYHTTP_API kyhttp::HttpErrorCode __cdecl KyHttp_RequestMessage(kyhttp::Uri uri, )
+KYHTTP_API kyhttp::HttpErrorCode __cdecl KyHttp_RequestMessage(kyhttp::Uri uri)
 {
 
 }

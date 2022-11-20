@@ -147,9 +147,10 @@
     <ClInclude Include="include\kyhttp_buffer.h" />
     <ClInclude Include="include\kyhttp_curl.h" />
     <ClInclude Include="include\kyhttp.h" />
-    <ClInclude Include="include\kyhttp_log.h" />
+    <ClInclude Include="include\kyhttpdef.h" />
+    <ClInclude Include="include\kyhttp_logger.h" />
     <ClInclude Include="include\kyhttp_types.h" />
-    <ClInclude Include="include\utils.h" />
+    <ClInclude Include="include\kyhttp_utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

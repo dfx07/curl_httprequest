@@ -1,4 +1,4 @@
-/*!**********************************************************************
+﻿/*!**********************************************************************
 * @copyright Copyright (C) 2022 thuong.nv -email: mark.ngo@kohyoung.com.\n
 *            All rights reserved.
 *************************************************************************
@@ -18,8 +18,8 @@
 #include <curl/curl.h>
 
 #include "kyhttp_types.h"
-#include "kyhttp_log.h"
 #include "kyhttp_buffer.h"
+#include <kyhttp_logger.h>
 
 __BEGIN_NAMESPACE__
 
@@ -41,111 +41,114 @@ __BEGIN_NAMESPACE__
 
 
 /*==================================================================================
-	HttpHeader:
-		+ CurlHttpHeader
-	HttpContent:
-		+) Multipart
-		+) 
+	HttpContent :
+		-> HttpRawContent			 : text, json, xml, javascript, html
+		-> HttpUrlEncodedContent	 : encode param to body request
+		-> HttpMultipartContent		 : post multipart data
+	HttpRequest :
+	HttpResponse:
+	HttpClient  :
 ===================================================================================*/
 
 /*==================================================================================
-* Class HttpMultipartInfo
-* Base on curl_mime (curl)
+* Class HttpRawContent
+* Content support: text, json, xml, javascript, html
 ===================================================================================*/
-class IKeyValue
+class HttpRawContent : public HttpContent
 {
-	struct KeyValueParam
-	{
-		std::string key;
-		std::string value;
-	};
-
-protected:
-	std::vector<KeyValueParam> m_keyvalue;
-
 public:
-	void AddKeyValue(const char* key, const char* value)
+	enum RAW_TYPE
 	{
-		m_keyvalue.push_back({ key, value });
+		text,
+		json,
+		xml,
+		javascript,
+		html
+	};
+private:
+	HttpBuffer	  m_rawbuffer;
+
+	RAW_TYPE      m_rawtype;
+	std::string   m_str_rawtype; 
+
+private:
+	virtual HttpContentType GetType() const
+	{
+		return HttpContentType::raw;
 	}
 
-	void AddKeyValue(const char* key, const std::string& value)
+	virtual void* InitContent(IN void* base)
 	{
-		m_keyvalue.push_back({ key, value });
+		return &m_rawbuffer;
 	}
 
-	void AddKeyValue(const char* key, const bool value)
+private:
+	static std::string ConvertTypeToString(RAW_TYPE type)
 	{
-		std::string vl;
-		vl = value ? "true" : "false";
-		m_keyvalue.push_back({ key, vl });
-	}
-
-	template<typename T, typename std::enable_if<std::is_arithmetic<T>::value, T>::type* = nullptr>
-	void AddKeyValue(const char* key, const T& value, const int& precision = 3)
-	{
-		std::string t = "";
-		if (std::is_floating_point<T>::value)
+		switch (type)
 		{
-			std::stringstream stream;
-			stream << std::fixed << std::setprecision(precision) << value;
-			t = stream.str();
+		case kyhttp::HttpRawContent::text:
+			return "Content-Type: text/plain";
+			break;
+		case kyhttp::HttpRawContent::json:
+			return "Content-Type: application/json";
+			break;
+		case kyhttp::HttpRawContent::xml:
+			return "Content-Type: application/xml";
+			break;
+		case kyhttp::HttpRawContent::javascript:
+			return "Content-Type: application/javascript";
+			break;
+		case kyhttp::HttpRawContent::html:
+			return "Content-Type: text/html";
+			break;
+		default:
+			break;
+		}
+		return "";
+	}
+public:
+	void SetRawData(const void* data, const unsigned int& size)
+	{
+		m_rawbuffer.set(data, size);
+	}
+	
+	void SetRawData(const wchar_t* path)
+	{
+		void* data = NULL;
+		int nbytes = kyhttp::read_data_file(path, &data);
+
+		if (nbytes > 0)
+		{
+			this->SetRawData(data, nbytes);
 		}
 		else
 		{
-			t = std::to_string(value);
+			KY_HTTP_LOG_WARN(L"[RawContent] Miss read data file: %s", data);
 		}
+	}
 
-		// remove trailing zero
-		while (!t.empty() && t.back() == '0')
-		{
-			t.pop_back();
-		}
-		m_keyvalue.push_back({ key, t });
+	void SetRawType(RAW_TYPE type)
+	{
+		m_rawtype = type;
+		m_str_rawtype = ConvertTypeToString(type);
+	}
+
+	RAW_TYPE GetRawType()
+	{
+		return m_rawtype;
+	}
+	const char* GetRawTypeToString()
+	{
+		return m_str_rawtype.c_str();
 	}
 };
 
-class Uri : private IKeyValue
-{
-private:
-	std::string location;
-
-public:
-	template<typename T>
-	void add_query_param(const char* key, T value)
-	{
-		this->AddKeyValue(key, value);
-	}
-
-	void set_location(IN const char* loc)
-	{
-		location = loc;
-	}
-
-	std::string get_query_param() const
-	{
-		std::string query_param;
-
-		if (!m_keyvalue.empty())
-		{
-			query_param.append(m_keyvalue[0].key + "=" + m_keyvalue[0].value);
-		}
-		for (int i = 1; i < m_keyvalue.size(); i++)
-		{
-			const auto& param = m_keyvalue[i];
-			query_param.append("&" + param.key + "=" + param.value);
-		}
-		return query_param;
-	}
-
-	friend class HttpClient;
-};
-
-class HttpRawContent : public HttpContent
-{
-
-};
-
+/*==================================================================================
+* Class HttpUrlEncodedContent
+* Container for name/value tuples encoded using application/x-www-form-urlencoded MIME type
+* The query parameter is contained in the content request
+===================================================================================*/
 class HttpUrlEncodedContent : public HttpContent, public IKeyValue
 {
 private:
@@ -177,6 +180,10 @@ private:
 	}
 };
 
+/*==================================================================================
+* Class HttpUrlEncodedContent
+* Provides a container for content encoded using multipart/form-data MIME type
+===================================================================================*/
 class HttpMultipartContent : public HttpContent
 {
 	struct HttpContentPart
@@ -315,6 +322,12 @@ private:
 		curl_slist_free_all(m_curl_slist);
 	}
 
+	// TODO:
+	void SetCurlSlist()
+	{
+
+	}
+
 private:
 	void* CreateHeaderData()
 	{
@@ -342,18 +355,23 @@ private:
 			append_curl_header(&m_curl_slist, "Host: %s", m_header_data.m_host.c_str());
 		if (!m_header_data.m_accept.empty())
 			append_curl_header(&m_curl_slist, "Accept: %s", m_header_data.m_accept.c_str());
+
 		if (!m_header_data.m_accept_encoding.empty())
+		{
 			append_curl_header(&m_curl_slist, "Accept-encoding: %s", m_header_data.m_accept_encoding.c_str());
+		}
+		else
+		{
+			append_curl_header(&m_curl_slist, "Accept-encoding: %s", "gzip, deflate, br");
+		}
 
 		for (int i = 0; i < m_header_data.m_extension.size(); i++)
 		{
 			append_curl_header(&m_curl_slist, m_header_data.m_extension[i].c_str());
 		}
+		append_curl_header(&m_curl_slist, "User-Agent: kohyoung");
 
-		append_curl_header(&m_curl_slist, "Connection: Keep-Alive");
-		append_curl_header(&m_curl_slist, "User-Agent: Brinicle");
-		append_curl_header(&m_curl_slist, "Pragma: no-cache");
-		append_curl_header(&m_curl_slist, "Cache-Control: no-cache");
+
 
 		return m_curl_slist;
 	}
@@ -367,6 +385,8 @@ private:
 		void* content = m_content->InitContent(curl);
 
 		type = m_content->GetType();
+		
+		return content;
 	}
 
 	friend class HttpClient;
@@ -464,7 +484,7 @@ private:
 
 	HttpClientOption	m_option;
 	HttpCookie			m_cookie;
-	SSLSetting			m_SSLSetting;
+	SSLSetting			m_ssl_setting;
 	WebProxy			m_proxy;
 
 	HttpClientProgress	m_progress;
@@ -680,9 +700,14 @@ private:
 		// libcurl schanel build : Verify window certificate
 		else
 		{
-			// Verify the server's SSL certificate.
-			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 1);
-			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1);
+			// Verify the server's SSL certificate. - auto
+			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 1L);
+			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+			if(ssl_setting->m_disable_verify_ssl_certificate)
+				curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 0L);
+			if (ssl_setting->m_disable_verify_host_certificate)
+				curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 0L);
 		}
 
 		return HttpErrorCode::KY_HTTP_OK;
@@ -743,7 +768,7 @@ private:
 			curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L); // Default get
 
 		PASS_ERROR_CODE(err_code, this->CreateConfig(m_option));
-		PASS_ERROR_CODE(err_code, this->CreateSSLOption(&m_SSLSetting));
+		PASS_ERROR_CODE(err_code, this->CreateSSLOption(&m_ssl_setting));
 		PASS_ERROR_CODE(err_code, this->CreateProxyOption(&m_proxy));
 		PASS_ERROR_CODE(err_code, this->InitClearResponse());
 
@@ -770,17 +795,17 @@ private:
 			return HttpErrorCode::KY_HTTP_OK;
 		}
 
-		// create header request data
-		void* header_request = request->CreateHeaderData();
-		curl_slist* header = static_cast<curl_slist*>(header_request);
-
-		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, header));
-
 		// create content request data
 		HttpContentType type = HttpContentType::none;
 		void* content_request = request->CreateContentData(m_curl, type);
 
-		if (HttpContentType::multipart == type)
+		// use when post not data content
+		if (HttpMethod::POST == method && (content_request == NULL || HttpContentType::none == type))
+		{
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, 0));
+		}
+
+		else if (HttpContentType::multipart == type)
 		{
 			curl_mime* data_post = static_cast<curl_mime*>(content_request);
 			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MIMEPOST, data_post));
@@ -791,9 +816,30 @@ private:
 			if (data)
 			{
 				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, data->c_str()));
-				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, data->length()) );
+				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, data->length()));
 			}
 		}
+		else if (HttpContentType::raw == type)
+		{
+			HttpBuffer* buff = static_cast<HttpBuffer*>(content_request);
+			if (buff)
+			{
+				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, buff->buffer()));
+				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buff->length()));
+			}
+		}
+
+		// create header request data
+		void* header_request = request->CreateHeaderData();
+		curl_slist* header = static_cast<curl_slist*>(header_request);
+		if (header && HttpContentType::raw == type)
+		{
+			HttpRawContent* rawHttp = static_cast<HttpRawContent*>(request->m_content);
+			if (rawHttp)
+				curl_slist_append(header, rawHttp->GetRawTypeToString());
+		}
+
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, header));
 
 		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlcode);
 		KY_HTTP_LOG_INFO(L"Create request data done. Result code = <%u>", retcode);
@@ -814,13 +860,30 @@ private:
 
 		curl_easy_setopt(m_curl, CURLOPT_URL, link.c_str());
 
-		CURLcode res = curl_easy_perform(m_curl);
-		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(res);
+		CURLcode curlret = CURLcode::CURLE_OK;
 
+		curlret = curl_easy_perform(m_curl);
+
+		int iTry = 0; // try connection
+		while (CURLcode::CURLE_OPERATION_TIMEDOUT == curlret &&
+			iTry < m_option.m_retry_connet)
+		{
+			KY_HTTP_LOG_WARN(L"Connection time out! %s -> Trying: %u.",
+					kyhttp::convert_mb_to_wstring(link.c_str(), link.length()).c_str(), iTry + 1);
+			curlret = curl_easy_perform(m_curl);
+			iTry++;
+		}
+
+		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlret);
 		if (retcode != HttpErrorCode::KY_HTTP_OK)
 		{
 			KY_HTTP_LOG_INFO(L"Send request failed. Result code = <%u>, Curl code = <%u> , Redirect = <%s>",
-				retcode, res, redict ? L"TRUE" : L"FALSE");
+				retcode, curlret, redict ? L"TRUE" : L"FALSE");
+
+			KY_HTTP_WRITE(L"============================ Error information =============================");
+			const char* str_err = curl_easy_strerror(curlret);
+			KY_HTTP_WRITE(L"%s", kyhttp::convert_mb_to_wstring(str_err, strlen(str_err)).c_str());
+			KY_HTTP_WRITE(L"============================================================================");
 			return retcode;
 		}
 
@@ -865,14 +928,14 @@ private:
 
 		if (!redict)
 		{
-			auto str_size = bytes_to_text(m_sent_size);
+			auto str_size = kyhttp::convert_bytes_to_text(m_sent_size);
 			KY_HTTP_LOG_INFO(L"HTTP request sent. Result code = <%u> [duration = <%.2f second>, size = <%s>] ",
 				retcode, m_request_time, str_size.c_str());
 		}
 		return retcode;
 	}
 public:
-	virtual void SetConfigunation(IN HttpClientOption option)
+	virtual void Configunation(IN HttpClientOption& option)
 	{
 		m_option = option;
 	}
@@ -880,6 +943,11 @@ public:
 	virtual void SettingProxy(IN WebProxy& proxy_info)
 	{
 		m_proxy = proxy_info;
+	}
+
+	virtual void SettingSSL(IN SSLSetting& ssl_setting)
+	{
+		m_ssl_setting = ssl_setting;
 	}
 
 	virtual void SettingCookie(IN HttpCookie& cookie)
@@ -929,7 +997,6 @@ public:
 
 		return SendRequest(uri);
 	}
-
 
 	virtual HttpErrorCode Get(IN const Uri uri, IN HttpRequest* request)
 	{

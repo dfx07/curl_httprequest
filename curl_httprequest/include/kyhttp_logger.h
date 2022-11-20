@@ -13,6 +13,12 @@
 #include <iostream>
 #include <Windows.h>
 
+#include "kyhttpdef.h"
+#include "kyhttp_utils.h"
+
+
+__BEGIN_NAMESPACE__
+
 enum tracker_state
 {
 	eLogger_None	= 0x0000,
@@ -23,23 +29,7 @@ enum tracker_state
 	eLogger_Trace   = 0x0009,
 };
 
-
 #define KY_HTTP_MAX_LENGTH_MSG_LOG 2048
-
-/******************************************************************************
-*! @brief  : convert mutiple byte to char
-*! @return : void
-*! @author : thuong.nv - [CreateDate] : 11/11/2022
-******************************************************************************/
-static std::string logger_to_utf8(const wchar_t* mb, const int& nsize)
-{
-	std::string utf8;
-	utf8.resize(nsize + sizeof(wchar_t), 0);
-	int nbytes = WideCharToMultiByte(CP_UTF8, 0, mb, (int)nsize / sizeof(wchar_t),
-		(LPSTR)utf8.c_str(), (int)utf8.size(), NULL, NULL);
-	utf8.resize(nbytes);
-	return utf8;
-}
 
 /******************************************************************************
 *! @brief  : get date time now in system local
@@ -103,7 +93,7 @@ static void logger_save(const wchar_t* text)
 	if (!file)
 		return;
 
-	std::string temp = logger_to_utf8(text, wcslen(text)*sizeof(wchar_t));
+	std::string temp = kyhttp::convert_wc_to_string(text, wcslen(text)*sizeof(wchar_t));
 	fputs(temp.c_str(), file);
 	fputs("\n", file);
 
@@ -173,6 +163,9 @@ static void logger_printf(int state, const char* filename, int linenum, BOOL sav
 	memset(msg, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
 	vswprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, fmt, args);
 
+	OutputDebugString(msg);
+	OutputDebugString(L"\n");
+
 	logger_save(msg);
 }
 
@@ -232,11 +225,15 @@ static void logger_printf_func(int begin, const char* filename, int linenum, BOO
 
 
 #define KY_HTTP_TRACE(fmt,...)			logger_printf(eLogger_Trace, __FUNCTION__,__LINE__, TRUE, fmt, ##__VA_ARGS__)
-#define KY_HTTP_LOG(fmt,...)			logger_printf(NULL			 , NULL, -1, TRUE, fmt,##__VA_ARGS__)
-#define KY_HTTP_LOG_ERROR(fmt,...)		logger_printf(eLogger_Error  , NULL, -1, TRUE, fmt,##__VA_ARGS__)
-#define KY_HTTP_LOG_WARNING(fmt,...)	logger_printf(eLogger_Warning, NULL, -1, TRUE, fmt,##__VA_ARGS__)
-#define KY_HTTP_LOG_ASSERT(fmt,...)		logger_printf(eLogger_Assert , NULL, -1, TRUE, fmt,##__VA_ARGS__)
-#define KY_HTTP_LOG_INFO(fmt,...)		logger_printf(eLogger_Info   , NULL, -1, TRUE, fmt,##__VA_ARGS__)
+#define KY_HTTP_LOG(fmt,...)			logger_printf(NULL			 , NULL, -1, TRUE , fmt,##__VA_ARGS__)
+#define KY_HTTP_WRITE(fmt,...)			logger_printf(NULL			 , NULL, -1, FALSE, fmt,##__VA_ARGS__)
+#define KY_HTTP_LOG_ERROR(fmt,...)		logger_printf(eLogger_Error  , NULL, -1, TRUE , fmt,##__VA_ARGS__)
+#define KY_HTTP_LOG_WARN(fmt,...)		logger_printf(eLogger_Warning, NULL, -1, TRUE , fmt,##__VA_ARGS__)
+#define KY_HTTP_LOG_ASSERT(fmt,...)		logger_printf(eLogger_Assert , NULL, -1, TRUE , fmt,##__VA_ARGS__)
+#define KY_HTTP_LOG_INFO(fmt,...)		logger_printf(eLogger_Info   , NULL, -1, TRUE , fmt,##__VA_ARGS__)
 
 #define KY_HTTP_ENTRY(fmt, ...)			logger_printf_func(TRUE, __FUNCTION__,__LINE__, TRUE, fmt, ##__VA_ARGS__)
 #define KY_HTTP_LEAVE(fmt, ...)			logger_printf_func(FALSE, __FUNCTION__,__LINE__, TRUE, fmt, ##__VA_ARGS__)
+
+
+__END___NAMESPACE__
