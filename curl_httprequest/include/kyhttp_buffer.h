@@ -27,7 +27,7 @@ public:
 
 	~HttpBuffer()
 	{
-		this->free();
+		this->_delete();
 	}
 
 	void*  buffer() const { return m_data; }
@@ -35,15 +35,24 @@ public:
 
 private:
 	/******************************************************************************
-	*! @brief     : free memory 
+	*! @brief     : delete memory 
 	*! @parameter : void
 	*! @author    : thuong.nv - [Date] : 11/11/2022
 	******************************************************************************/
-	void free()
+	void _delete()
 	{
 		delete[] m_data;
 		m_size = 0;
 		m_capacity = 0;
+	}
+
+	void free()
+	{
+		if (m_data)
+		{
+			memset(m_data, 0, m_size);
+		}
+		m_size = 0;
 	}
 
 	/******************************************************************************
@@ -58,7 +67,7 @@ private:
 		if (nsize <= m_capacity)
 			return 1;
 
-		char* m_olddata = m_data;
+		const char* m_olddata = m_data;
 
 		m_data = new char[nsize];
 		memset(m_data, 0, nsize);
@@ -138,6 +147,9 @@ public:
 
 	int append(const void* data, unsigned int nsize)
 	{
+		if (nsize <= 0)
+			return 1;
+
 		int alloc_ok = alloc_append(nsize + 2);
 		if (alloc_ok)
 		{
@@ -150,6 +162,9 @@ public:
 
 	int set(const void* data, unsigned int nsize)
 	{
+		if (nsize <= 0)
+			return 1;
+
 		int alloc_ok = alloc(nsize + 2, false);
 		if (alloc_ok)
 		{
@@ -166,8 +181,13 @@ public:
 		alloc(nsize, true);
 	}
 
+	bool empty()
+	{
+		return m_size <= 0 ? true : false;
+	}
+
 	void clear()
 	{
-		alloc(m_capacity, true);
+		this->free();
 	}
 };

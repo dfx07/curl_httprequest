@@ -141,7 +141,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="curltest.cpp" />
-    <ClCompile Include="curl_httprequest.cpp" />
+    <ClCompile Include="kyhttp_apitest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\kyhttp_buffer.h" />

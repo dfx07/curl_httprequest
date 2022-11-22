@@ -21,7 +21,7 @@
     <ClCompile Include="curltest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="curl_httprequest.cpp">
+    <ClCompile Include="kyhttp_apitest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

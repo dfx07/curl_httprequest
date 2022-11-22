@@ -36,21 +36,21 @@ enum tracker_state
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static void logger_get_datetime(wchar_t* buff)
+static void logger_get_datetime(char* buff)
 {
 	SYSTEMTIME SystemTime;
 	GetLocalTime(&SystemTime);
 
 	const size_t buffsize = 200;
-	wchar_t bufftime[buffsize];
+	char bufftime[buffsize];
 
 	memset(bufftime, 0, buffsize);
-	swprintf_s(bufftime, L"%04d-%02d-%02d %02d:%02d:%02d:%03d",
+	snprintf(bufftime, buffsize, "%04d-%02d-%02d %02d:%02d:%02d:%03d",
 		SystemTime.wYear, SystemTime.wMonth, SystemTime.wDay,
 		SystemTime.wHour, SystemTime.wMinute, SystemTime.wSecond,
 		SystemTime.wMilliseconds);
 
-	memcpy_s(buff, wcslen(bufftime) * sizeof(wchar_t), bufftime, wcslen(bufftime) * sizeof(wchar_t));
+	memcpy_s(buff, buffsize, bufftime, buffsize);
 }
 
 /******************************************************************************
@@ -58,7 +58,7 @@ static void logger_get_datetime(wchar_t* buff)
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static void logger_save(const wchar_t* text)
+static void logger_save(const char* text)
 {
 	static std::wstring filepath = L"";
 	if (filepath.empty())
@@ -85,6 +85,9 @@ static void logger_save(const wchar_t* text)
 		}
 	}
 
+	//OutputDebugString(text);
+	//OutputDebugString(L"\n");
+
 	if (filepath.empty())
 		return;
 
@@ -93,7 +96,7 @@ static void logger_save(const wchar_t* text)
 	if (!file)
 		return;
 
-	std::string temp = kyhttp::convert_wc_to_string(text, wcslen(text)*sizeof(wchar_t));
+	std::string temp(text);
 	fputs(temp.c_str(), file);
 	fputs("\n", file);
 
@@ -105,71 +108,61 @@ static void logger_save(const wchar_t* text)
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
+
+static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const char* format, va_list args)
 {
-	wchar_t fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	char fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(fmt, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
 
-	wchar_t fstate[50];
+	char fstate[50];
 	memset(fstate, 0, 50);
 
 	if (state == eLogger_Warning)
 	{
-		memcpy(fstate, L"[warn] ", sizeof(L"[warn] "));
+		memcpy(fstate, "[warn] ", sizeof("[warn] "));
 	}
 	else if (state == eLogger_Error)
 	{
-		memcpy(fstate, L"[error]", sizeof(L"[error]"));
+		memcpy(fstate, "[error]", sizeof("[error]"));
 	}
 	else if (state == eLogger_Info)
 	{
-		memcpy(fstate, L"[info] ", sizeof(L"[info] "));
+		memcpy(fstate, "[info] ", sizeof("[info] "));
 	}
 
 	if (savetime)
 	{
 		const size_t ndatetime = 200;
-		wchar_t datetime[ndatetime];  memset(datetime, 0, ndatetime);
+		char datetime[ndatetime];  memset(datetime, 0, ndatetime);
 		logger_get_datetime(datetime);
 
-		if(wcscmp(L"", fstate) ==0)
-			swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s %s", datetime, format);
-		else 
-			swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s %s %s", datetime, fstate, format);
+		if (strcmp("", fstate) == 0)
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s %s", datetime, format);
+		else
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s %s %s", datetime, fstate, format);
 	}
 	else
 	{
-		if (wcscmp(L"", fstate) == 0)
-			swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s", format);
+		if (strcmp("", fstate) == 0)
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s", format);
 		else
-			swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s %s", fstate, format);
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s %s", fstate, format);
 	}
 
 	if (filename != NULL)
 	{
 		const size_t nmaxfilename = 200;
-
-		wchar_t fname[nmaxfilename];
-		memset(fname, 0, nmaxfilename);
-
-		size_t outSize;
-		mbstowcs_s(&outSize, &fname[0], nmaxfilename, filename, strlen(filename));
-
-		swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s [%s %d]", fmt, fname, linenum);
-		
+		snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s ( %s %d )", fmt, filename, linenum);
 	}
 
-	wchar_t msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	char msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(msg, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
-	vswprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, fmt, args);
-
-	OutputDebugString(msg);
-	OutputDebugString(L"\n");
+	vsnprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, fmt, args);
 
 	logger_save(msg);
 }
 
-static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -177,50 +170,71 @@ static void logger_printf(int state, const char* filename, int linenum, BOOL sav
 	va_end(args);
 }
 
+static void logger_printf(int state, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+{
+	wchar_t msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	memset(msg, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
+
+	va_list args; va_start(args, format);
+	vswprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, format, args);
+	va_end(args);
+
+	std::string temp = kyhttp::convert_wc_to_string(msg);
+
+	logger_printf(state, filename, linenum, savetime, "%s", temp.c_str());
+}
+
 /******************************************************************************
 *! @brief  : Write msg to file logfile - function
 *! @return : void
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, va_list args)
+static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const char* format, va_list args)
 {
-	wchar_t fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	char fmt[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(fmt, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
-
-	const size_t nmaxfilename = 200;
-	wchar_t fname[nmaxfilename];
-	memset(fname, 0, nmaxfilename);
-
-	size_t outSize;
-	mbstowcs_s(&outSize, &fname[0], nmaxfilename, filename, strlen(filename));
 
 	if (savetime)
 	{
 		const size_t ndatetime = 200;
-		wchar_t datetime[ndatetime];  memset(datetime, 0, ndatetime);
+		char datetime[ndatetime];  memset(datetime, 0, ndatetime);
 		logger_get_datetime(datetime);
-		swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s", datetime);
+		snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s", datetime);
 	}
 
 	if (begin)
-		swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s [func-%s:%d][begin] %s", fmt, fname, linenum, format);
+		snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s [func-%s:%d][begin] %s", fmt, filename, linenum, format);
 	else
-		swprintf_s(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, L"%s [func-%s:%d][end] %s", fmt, fname, linenum, format);
+		snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s [func-%s:%d][end] %s", fmt, filename, linenum, format);
 
 
-	wchar_t msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	char msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
 	memset(msg, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
-	vswprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, fmt, args);
+	vsnprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, fmt, args);
 
 	logger_save(msg);
 }
 
-static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
 	logger_printf_func(begin, filename, linenum, savetime, format, args);
 	va_end(args);
+}
+
+static void logger_printf_func(int begin, const char* filename, int linenum, BOOL savetime, const wchar_t* format, ...)
+{
+	wchar_t msg[KY_HTTP_MAX_LENGTH_MSG_LOG];
+	memset(msg, 0, KY_HTTP_MAX_LENGTH_MSG_LOG);
+
+	va_list args;
+	va_start(args, format);
+	vswprintf_s(msg, KY_HTTP_MAX_LENGTH_MSG_LOG, format, args);
+	va_end(args);
+
+	std::string temp = kyhttp::convert_wc_to_string(msg, KY_HTTP_MAX_LENGTH_MSG_LOG);
+	logger_printf_func(begin, filename, linenum, savetime, "%s", temp.c_str());
 }
 
 
@@ -231,6 +245,8 @@ static void logger_printf_func(int begin, const char* filename, int linenum, BOO
 #define KY_HTTP_LOG_WARN(fmt,...)		logger_printf(eLogger_Warning, NULL, -1, TRUE , fmt,##__VA_ARGS__)
 #define KY_HTTP_LOG_ASSERT(fmt,...)		logger_printf(eLogger_Assert , NULL, -1, TRUE , fmt,##__VA_ARGS__)
 #define KY_HTTP_LOG_INFO(fmt,...)		logger_printf(eLogger_Info   , NULL, -1, TRUE , fmt,##__VA_ARGS__)
+
+#define KY_HTTP_LOGA(fmt,...)			logger_printf(NULL			 , NULL, -1, TRUE , fmt,##__VA_ARGS__)
 
 #define KY_HTTP_ENTRY(fmt, ...)			logger_printf_func(TRUE, __FUNCTION__,__LINE__, TRUE, fmt, ##__VA_ARGS__)
 #define KY_HTTP_LEAVE(fmt, ...)			logger_printf_func(FALSE, __FUNCTION__,__LINE__, TRUE, fmt, ##__VA_ARGS__)

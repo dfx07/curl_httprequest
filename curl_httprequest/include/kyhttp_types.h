@@ -20,7 +20,7 @@
 __BEGIN_NAMESPACE__
 
 interface HttpClient;
-typedef std::shared_ptr<HttpClient> HttpClienttPtr;
+typedef std::shared_ptr<HttpClient> HttpClientPtr;
 
 interface HttpHeader;
 typedef std::shared_ptr<HttpHeader> HttpHeaderPtr;
@@ -209,8 +209,8 @@ struct WebProxy
 
 struct SSLSetting
 {
-	bool m_disable_verify_ssl_certificate  = false; // verify ssl certificate
-	bool m_disable_verify_host_certificate = false; // verify host certificate
+	BOOL m_disable_verify_ssl_certificate  = FALSE; // verify ssl certificate
+	BOOL m_disable_verify_host_certificate = FALSE; // verify host certificate
 };
 
 struct HttpCookie
@@ -220,7 +220,7 @@ struct HttpCookie
 
 struct HttpRequestOption
 {
-	int		m_retry_connet;		  // count
+	INT		m_retry_connet;		  // count
 	float	m_connect_timout;	  // milliseconds
 	float	m_max_download_speed; // kb/s
 	float	m_max_upload_speed;	  // kb/s
@@ -228,9 +228,9 @@ struct HttpRequestOption
 
 struct HttpClientOption
 {
-	bool	m_show_request = true;		// show request
+	BOOL	m_show_request = TRUE;		// show request
 	INT		m_retry_connet;				// count
-	LONG	m_connect_timout;			// milliseconds
+	LONG	m_connect_timout = 0;		// milliseconds
 	float	m_max_download_speed;		// kb/s
 	float	m_max_upload_speed;			// kb/s
 	BOOL	m_auto_redirect = FALSE;	// auto redict  | TRUE / FALSE
@@ -239,7 +239,7 @@ struct HttpClientOption
 struct HttpClientProgress
 {
 	int		m_action;
-	int		m_force_stop = false;
+	BOOL	m_force_stop = FALSE;
 
 	double	m_cur_upload;
 	double	m_cur_download;
@@ -264,8 +264,11 @@ struct HttpHeaderData
 ===================================================================================*/
 interface HttpContent
 {
+protected:
 	virtual void* InitContent(IN void* base = NULL) = 0;
 	virtual HttpContentType GetType() const = 0;
+
+	friend class HttpRequest;
 };
 
 /*==================================================================================
@@ -292,6 +295,7 @@ class IKeyValue
 	struct KeyValueParam;
 	typedef std::vector<KeyValueParam> KEY_VALUE_LIST;
 
+protected:
 	struct KeyValueParam
 	{
 		std::string key;

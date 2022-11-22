@@ -3,13 +3,13 @@
 
 //test website use : https://badssl.com/
 
-int main()
+int main2()
 {
 	kyhttp::Uri uri;
-	//uri.set_location("https://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8");
+	uri.set_location("https://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8");
 	//uri.set_location("https://expired.badssl.com/"); // ssl expired certificate
 	//uri.set_location("https://wrong.host.badssl.com/"); // wrong expired certificate
-	uri.set_location("www.google.com:81"); // request timeout
+	//uri.set_location("www.google.com:81"); // request timeout
 	//uri.set_location("http://10.10.1.153:8080/secure/Dashboard.jspa");
 	//uri.set_location("https://www.google.com.sg/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png");
 	//uri.set_location("https://www.youtube.com");
@@ -17,12 +17,12 @@ int main()
 	uri.add_query_param("dfsad", 25.5f);
 
 	kyhttp::HttpClientOption option;
+	//option.m_show_request = TRUE;
 	//option.m_auto_redirect = TRUE;
-	option.m_connect_timout = 1000; //ms
-	option.m_retry_connet = 3;
+	//option.m_connect_timout = 1000; //ms
+	//option.m_retry_connet = 3;
 
 	kyhttp::WebProxy proxy;
-
 	//proxy.m_hostname = "85.208.107.192";
 	//proxy.m_port = 1337;
 
@@ -91,4 +91,6 @@ int main()
 
 
 	getchar();
+
+	return 1;
 }

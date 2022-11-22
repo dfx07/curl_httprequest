@@ -20,6 +20,7 @@ __BEGIN_NAMESPACE__
 *! @brief  : Read bytes data file
 *! @return : int : nsize / data : buff
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
+*! @note   : delete data when finished using
 ******************************************************************************/
 static int read_data_file(IN const wchar_t* path, OUT void** data)
 {
@@ -47,41 +48,76 @@ static int read_data_file(IN const wchar_t* path, OUT void** data)
 }
 
 /******************************************************************************
+*! @brief  : write data to file (create if not exist)
+*! @return : int : nsize / data : buff
+*! @author : thuong.nv - [CreateDate] : 11/11/2022
+******************************************************************************/
+static int write_data_file(IN const wchar_t* path, IN const void* data, IN const int& nsize)
+{
+	FILE* file = _wfsopen(path, L"wb", SH_DENYNO);
+	if (!file) return 0;
+
+	if (nsize <= 0 || !data)
+	{
+		fwrite(data, sizeof(char), nsize, file);
+	}
+	fclose(file);
+	return 1;
+}
+
+static int write_data_file_append(IN const wchar_t* path, IN const void* data, IN const int& nsize)
+{
+	FILE* file = _wfsopen(path, L"ab+", SH_DENYNO);
+	if (!file) return 0;
+
+	if (nsize <= 0 || !data)
+	{
+		fclose(file);
+		return 1;
+	}
+
+	fwrite(data, sizeof(char), nsize, file);
+
+	fclose(file);
+	return 1;
+}
+
+/******************************************************************************
 *! @brief  : convert number bytes to text (including unit of measure)
 *! @return : wstring 
 *! @author : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static std::wstring convert_bytes_to_text(IN unsigned int bytes)
+static std::string convert_bytes_to_text(IN double bytes)
 {
 	const int nsizebuff = 50;
-	wchar_t buff[nsizebuff];
+	char buff[nsizebuff];
 	memset(buff, 0, nsizebuff);
 
-	if (bytes >= 1073741824)   // GB
+	if (bytes >= 1073741824.0)   // GB
 	{
-		swprintf(buff, nsizebuff, L"%.2ld GB", bytes / 1073741824);
+		snprintf(buff, nsizebuff, "%.2f GB", bytes / 1073741824.0);
 	}
-	else if (bytes >= 1048576) // MB
+	else if (bytes >= 1048576.0) // MB
 	{
-		swprintf(buff, nsizebuff, L"%.2ld MB", bytes / 1048576);
+		snprintf(buff, nsizebuff, "%.2f MB", bytes / 1048576);
 	}
 	else if (bytes >= 1024)   // KB
 	{
-		swprintf(buff, nsizebuff, L"%.2ld KB", bytes / 1024);
+		snprintf(buff, nsizebuff, "%.2f KB", bytes / 1024);
 	}
 	else if (bytes > 1)       // bytes
 	{
-		swprintf(buff, nsizebuff, L"%.2ld bytes", bytes);
+		snprintf(buff, nsizebuff, "%.2f bytes", bytes);
 	}
 	else if (bytes == 1)
 	{
-		swprintf(buff, nsizebuff, L"1 byte");
+		snprintf(buff, nsizebuff, "1 byte");
 	}
 	else
 	{
-		swprintf(buff, nsizebuff, L"0 byte");
+		snprintf(buff, nsizebuff, "0 byte");
 	}
-	return std::wstring(buff);
+	return buff;
 }
 
 /******************************************************************************
@@ -113,15 +149,22 @@ static bool create_directory_recursive(IN const std::wstring& path)
 }
 
 /******************************************************************************
-*! @brief  : convert wide char to string
-*! @return : void
-*! @author : thuong.nv - [CreateDate] : 11/11/2022
+*! @brief    : convert wide char to string
+*! @parameter: nsize : number bytes
+*! @return   : void
+*! @author   : thuong.nv - [CreateDate] : 11/11/2022
 ******************************************************************************/
-static std::string convert_wc_to_string(IN const wchar_t* wc, IN const int& nsize)
+static std::string convert_wc_to_string(IN const wchar_t* wc, IN const int& nsize = -1)
 {
 	std::string utf8;
-	utf8.resize(nsize + sizeof(wchar_t), 0);
-	int nbytes = ::WideCharToMultiByte(CP_UTF8, 0, wc, (int)nsize / sizeof(wchar_t),
+	int length = nsize;
+
+	if (length < 0)   // -1 default
+		length = wcslen(wc);
+
+	utf8.resize(length + 1, 0);
+
+	int nbytes = ::WideCharToMultiByte(CP_UTF8, 0, wc, length,
 		(LPSTR)utf8.c_str(), (int)utf8.size(), NULL, NULL);
 	utf8.resize(nbytes);
 	return utf8;
