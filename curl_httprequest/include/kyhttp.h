@@ -2,17 +2,16 @@
 
 
 #ifdef KYHTTP_EXPORTS
-#define KYHTTP_API __declspec(dllexport)
+	#define KYHTTP_API __declspec(dllexport)
 #else
 #ifdef KYHTTP_USE_DLL
-#define KYHTTP_API __declspec(dllimport)
+	#define KYHTTP_API __declspec(dllimport)
 #else
-#define KYHTTP_API
+	#define KYHTTP_API
 #endif
 #endif
 
-#include "kyhttp_logger.h"
-#include "kyhttp_types.h"
+
 #include "kyhttp_curl.h"
 
 

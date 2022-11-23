@@ -191,7 +191,8 @@ struct SSLSetting
 
 struct HttpCookie
 {
-
+	std::string m_cookie_send;
+	std::string m_cookie_recv;
 };
 
 struct HttpClientOption

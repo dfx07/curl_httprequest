@@ -221,18 +221,26 @@ class HttpMultipartContent : public HttpContent
 {
 	struct HttpContentPart
 	{
-		std::string			m_name;
-		std::string			m_value;
-		std::string			m_filename;
-		std::string			m_header_custom; //set a mime part's custom headers
+		std::string			 m_name;
+		std::string			 m_value;
+		std::string			 m_filename;
 
-		struct // data field NO COPY
+		//[field] content-type and parameter data part
+		struct
 		{
-			const void* m_data;
-			size_t		m_size;
+			HttpContentType	 m_content_type;   // specify content-type
+			std::string		 m_content_parameter; // parameter after content-type when content-type != Auto
 		};
 
-		HttpContentType m_type;
+		//[field] set a mime part's custom headers
+		std::string			 m_header_custom;
+
+		//[field] data field part ! NO COPY
+		struct
+		{
+			const void*		 m_data;
+			size_t			 m_size;
+		};
 	};
 
 private:
@@ -265,19 +273,21 @@ private:
 		if (!part_data.m_header_custom.empty())
 		{
 			// headers auto free -> no need use slist free here
-			//struct curl_slist* headers = NULL;
-			//headers = curl_slist_append(headers, part_data.m_header_custom.c_str());
+			struct curl_slist* headers = NULL;
+			headers = curl_slist_append(headers, part_data.m_header_custom.c_str());
 
-			//curl_mime_headers(pPart, headers, TRUE);
+			curl_mime_headers(pPart, headers, TRUE);
 		}
 
 		// content-type for part not disposition_type
-		if (part_data.m_type != HttpContentType::Auto)
+		if (part_data.m_content_type != HttpContentType::Auto)
 		{
-			std::string str_ct_type = kyhttp::get_string_content_type(part_data.m_type);
+			std::string str_ct_type = kyhttp::get_string_content_type(part_data.m_content_type);
 
-			str_ct_type.append("; AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12913\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"");
-
+			if (!part_data.m_content_parameter.empty())
+			{
+				str_ct_type.append("; " + part_data.m_content_parameter);
+			}
 			curl_mime_type(pPart, str_ct_type.c_str());
 		}
 
@@ -302,11 +312,15 @@ public:
 
 	}
 
-	void AddPartKeyValue(const char* name, const char* value, const char* header_custom = NULL)
+	void AddPartKeyValue(const char* name, const char* value,
+						 HttpContentType	content_type      = Auto,
+						 const char*		content_parameter = NULL,
+						 const char*		header_custom	  = NULL)
 	{
 		HttpContentPart part;
 
-		part.m_type  = HttpContentType::Auto;
+		part.m_content_type = content_type;
+		part.m_content_parameter = content_parameter;
 		part.m_name  = name;
 		part.m_value = value;
 		part.m_data  = NULL;
@@ -317,13 +331,15 @@ public:
 	}
 
 	void AddPartFile(const char* name, const char* filename,
-					 const void* data = NULL, size_t data_size = 0,	  // file data
-					 HttpContentType type = HttpContentType::Auto,
-					 const char* header_custom = NULL)
+					const void* data = NULL, size_t data_size = 0,	  // file data
+					HttpContentType		content_type	  = Auto,
+					const char*			content_parameter = NULL,
+					const char*			header_custom     = NULL)
 	{
 		HttpContentPart part;
 
-		part.m_type     = type;
+		part.m_content_type = content_type;
+		part.m_content_parameter = content_parameter ? content_parameter : "";
 		part.m_name     = name;
 		part.m_filename = filename;
 		part.m_data     = data;
@@ -649,10 +665,45 @@ private:
 		m_curl = nullptr;
 	}
 
+	CURLcode ExecuteCurl(const char* url)
+	{
+		auto curl_get_time_second = [](CURL* curl) // get time request information
+		{
+			curl_off_t lrequest_time = 0;
+			if (curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME_T, &lrequest_time) == CURLE_OK)
+			{
+				return double(lrequest_time) / 1000000.0;
+			}
+			return 0.0;
+		};
+
+		curl_easy_setopt(m_curl, CURLOPT_URL, url);
+		KY_HTTP_LOG("[*] %s => %s, ssl_check=%s, timeout=%u", 
+			get_string_method(m_send_method).c_str(),
+			url,
+			m_ssl_setting.m_disable_verify_ssl_certificate ? "false" : "true", 
+			m_option.m_connect_timout);
+
+		CURLcode curlret = curl_easy_perform(m_curl);
+		m_request_time += curl_get_time_second(m_curl);
+
+		unsigned int iTry = 0; // try connection
+		while ((CURLcode::CURLE_OPERATION_TIMEDOUT == curlret ||
+				CURLcode::CURLE_COULDNT_CONNECT == curlret) &&
+				iTry < m_option.m_retry_connet)
+		{
+			KY_HTTP_LOG_WARN("Connection time out! %s -> Trying: %u.", url, iTry + 1);
+			curlret = curl_easy_perform(m_curl);
+			m_request_time += curl_get_time_second(m_curl);
+
+			iTry++;
+		}
+
+		return curlret;
+	}
+
 	static HttpErrorCode ConvertCURLCodeToHTTPCode(CURLcode curl_code)
 	{
-	    //DEBUG_ENTRY("CURLcode curl_code = <%d>", curl_code)
-	
 		HttpErrorCode kyhttp_error_code = KY_HTTP_FAILED;
 	
 	    switch (curl_code)
@@ -707,7 +758,6 @@ private:
 	            break;
 	    }
 	
-	    //DEBUG_LEAVE("retVal = <%d>", KY_HTTP_code);
 	    return kyhttp_error_code;
 	}
 
@@ -875,7 +925,7 @@ private:
 		PASS_ERROR_CODE(err_code, this->CreateProxyOption(&m_proxy));
 		PASS_ERROR_CODE(err_code, this->InitClearResponse());
 
-		KY_HTTP_LOG("Init HttpRequest done. Result code=<%u>", err_code);
+		KY_HTTP_LOG("Init HttpRequest done. Result code=<0x%x>", err_code);
 		return err_code;
 	}
 
@@ -946,7 +996,7 @@ private:
 		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, header));
 
 		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlcode);
-		KY_HTTP_LOG(L"Create RequestData done. Result code=<%u>", retcode);
+		KY_HTTP_LOG(L"Create RequestData done. Result code=<0x%x>", retcode);
 
 		return retcode;
 	}
@@ -972,31 +1022,17 @@ private:
 	{
 		if (!m_curl)
 			return HttpErrorCode::KY_HTTP_FAILED;
+
 		std::string link = uri.location;
 
 		std::string query_param = uri.get_query_param();
 		if (!query_param.empty())
 			link.append("?" + query_param);
 
-		curl_easy_setopt(m_curl, CURLOPT_URL, link.c_str());
-		KY_HTTP_LOG("%s - %s, SSLcheck=%s, timeout=%u", get_string_method(m_send_method).c_str(), link.c_str(),
-			m_ssl_setting.m_disable_verify_ssl_certificate ? "FALSE" : "TRUE", m_option.m_connect_timout);
-
-		CURLcode curlret = CURLcode::CURLE_OK;
-
-		curlret = curl_easy_perform(m_curl);
-
-		unsigned int iTry = 0; // try connection
-		while (CURLcode::CURLE_OPERATION_TIMEDOUT == curlret && iTry < m_option.m_retry_connet)
-		{
-			KY_HTTP_LOG_WARN("connection time out! %s -> Trying: %u.", link.c_str(), iTry + 1);
-			curlret = curl_easy_perform(m_curl);
-			iTry++;
-		}
-
+		CURLcode curlret = this->ExecuteCurl(link.c_str());
 		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlret);
 
-		curl_off_t lrequest_size = 0; curl_off_t lrequest_time = 0;
+		curl_off_t lrequest_size = 0; 
 		double value_size = 0.0;
 
 		// upload request information
@@ -1014,12 +1050,6 @@ private:
 		if (curl_easy_getinfo(m_curl, CURLINFO_SIZE_DOWNLOAD, &value_size) == CURLE_OK)
 		{
 			m_download_size += value_size;
-		}
-
-		// time request infomation
-		if (curl_easy_getinfo(m_curl, CURLINFO_TOTAL_TIME_T, &lrequest_time) == CURLE_OK)
-		{
-			m_request_time += double(lrequest_time)/ 1000000;
 		}
 
 		long http_code = 0;
@@ -1051,24 +1081,24 @@ private:
 
 			if (retcode == HttpErrorCode::KY_HTTP_OK)
 			{
-				KY_HTTP_LOG("Send request  ->DONE. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
+				KY_HTTP_LOG("[*] Send request DONE. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
 					kyhttp::convert_bytes_to_text(m_upload_size).c_str(), m_request_time,
 					kyhttp::convert_bytes_to_text(avg_upload_speed).c_str());
-				KY_HTTP_LOG("Recv response ->DONE. status_code:%u, total_download=%s, download_speed=%s/sec.", http_code,
+				KY_HTTP_LOG("[*] Receive respond DONE. status_code:%u, total_download=%s, download_speed=%s/sec.", http_code,
 					kyhttp::convert_bytes_to_text(m_download_size).c_str(),
 					kyhttp::convert_bytes_to_text(avg_download_speed).c_str());
 			}
 			else
 			{
-				KY_HTTP_LOG("Send request   ->FAILED. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
+				KY_HTTP_LOG("[*] Send request FAILED. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
 					kyhttp::convert_bytes_to_text(m_upload_size).c_str(),
 					m_request_time,
 					kyhttp::convert_bytes_to_text(avg_upload_speed).c_str());
 
-				KY_HTTP_LOG(L"============================ Error information =============================");
-				KY_HTTP_LOG("Result code=<%u> | CURLcode=<%u>", retcode, curlret);
+				KY_HTTP_LOG("============================ Error information =============================");
+				KY_HTTP_LOG("ErrorCode=<0x%x> | CURLcode=<%u>", retcode, curlret);
 				KY_HTTP_LOG("%s", curl_easy_strerror(curlret));
-				KY_HTTP_LOG(L"============================================================================");
+				KY_HTTP_LOG("============================================================================");
 			}
 		}
 		return retcode;
@@ -1119,19 +1149,19 @@ public:
 		KY_HTTP_LOG("//////////////////////////////////////////////");
 		if (nullptr == request)
 		{
-			std::cout << "[err-post] - Post request nullptr" << std::endl;
+			KY_HTTP_LOG_ERROR("[Failed] Post request nullptr !");
 			return HttpErrorCode::KY_HTTP_FAILED;
 		}
 
 		if (HttpErrorCode::KY_HTTP_OK != this->InitHttpRequest())
 		{
-			KY_HTTP_LOG_ERROR(L" ->[Failed] init http request failed !");
+			KY_HTTP_LOG_ERROR("[Failed] init http request failed !");
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
 		if (this->CreateRequestData(HttpMethod::POST, request) != HttpErrorCode::KY_HTTP_OK)
 		{
-			KY_HTTP_LOG_ERROR(L" ->[Failed] set request parameter failed !");
+			KY_HTTP_LOG_ERROR("[Failed] set request parameter failed !");
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
@@ -1143,13 +1173,13 @@ public:
 		KY_HTTP_LOG("//////////////////////////////////////////////");
 		if (HttpErrorCode::KY_HTTP_OK != this->InitHttpRequest())
 		{
-			KY_HTTP_LOG_ERROR(L" ->[Failed] init http request failed !");
+			KY_HTTP_LOG_ERROR("[Failed] init http request failed !");
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
 		if (this->CreateRequestData(HttpMethod::GET, request) != HttpErrorCode::KY_HTTP_OK)
 		{
-			KY_HTTP_LOG_ERROR(L" ->[Failed] set request parameter failed !");
+			KY_HTTP_LOG_ERROR("[Failed] set request parameter failed !");
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 

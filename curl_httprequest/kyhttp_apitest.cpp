@@ -57,11 +57,15 @@ void upload_file_to(IN		const kyhttp::Uri& uri,
 	path_send_data.append(path_file_upload);
 	int file_size = kyhttp::read_data_file(path_send_data.c_str(), &data);
 	char* file_data = static_cast<char*>(data);
-	std::string header_custom = "AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12913\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"";
+	std::string content_param = "AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12913\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"";
 
 	kyhttp::HttpMultipartContentPtr content = std::make_shared<kyhttp::HttpMultipartContent>();
 	
-	content->AddPartFile("file", "job_kyhttp_test.kyjob", file_data, file_size, kyhttp::HttpContentType::application_octet_stream, header_custom.c_str());
+	content->AddPartFile("file", "job_kyhttp_test.kyjob", file_data, file_size,
+						kyhttp::HttpContentType::application_octet_stream, content_param.c_str());
+
+	//content->AddPartFile("file", "job_kyhttp_test.kyjob", file_data, file_size,
+	//	kyhttp::Auto, NULL, content_param.c_str());
 
 	request->SetContent(content.get());
 
@@ -171,16 +175,22 @@ void download_file()
 void upload_file_multipart()
 {
 	kyhttp::Uri uri;
-	uri.set_location("http://192.168.111.247:80/upload_job");
+	uri.set_location("http://192.168.111.247:8088/upload_job");
 	//uri.set_location("http://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8");
 
 	kyhttp::HttpClientPtr  client = std::make_shared<kyhttp::HttpClient>();
+
+	kyhttp::HttpClientOption option;
+
+	option.m_retry_connet = 3;
+	client->Configunation(option);
+	//upload_file_to(uri, client, L"job_upload_test.kyjob", L"upload_file_multipart_response.txt");
 	upload_file_to(uri, client, L"job_kyhttp_test.kyjob", L"upload_file_multipart_response.txt");
 }
 
 
 
-int main1()
+int main()
 {
 	//1. login ksmart
 	//KSMARTLogin();

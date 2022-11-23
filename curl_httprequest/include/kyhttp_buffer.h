@@ -67,21 +67,22 @@ private:
 		if (nsize <= m_capacity)
 			return 1;
 
-		const char* m_olddata = m_data;
+		char* m_olddata = m_data;
 
 		m_data = new char[nsize];
 		memset(m_data, 0, nsize);
 		m_capacity = nsize;
-		delete[] m_olddata;
 
-		if (cp && m_olddata &&  m_data != m_olddata)
+		if (cp && m_olddata)
 		{
-			memcpy(m_data, m_olddata, m_size);
+			memcpy_s(m_data, m_size, m_olddata, m_size);
 		}
 		else
 		{
 			memset(m_data, 0, m_size);
 		}
+
+		delete[] m_olddata;
 
 		return 1;
 	}

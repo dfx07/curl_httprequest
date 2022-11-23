@@ -95,7 +95,7 @@ int main2()
 	return 1;
 }
 
-int main()
+int main3()
 {
 	//CURL* curl;
 	//curl = curl_easy_init();

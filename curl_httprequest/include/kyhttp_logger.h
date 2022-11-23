@@ -119,15 +119,15 @@ static void logger_printf(int state, const char* filename, int linenum, BOOL sav
 
 	if (state == eLogger_Warning)
 	{
-		memcpy(fstate, "[warn] ", sizeof("[warn] "));
+		memcpy(fstate, "[Warn] ", sizeof("[Warn] "));
 	}
 	else if (state == eLogger_Error)
 	{
-		memcpy(fstate, "[error]", sizeof("[error]"));
+		memcpy(fstate, "[Error]", sizeof("[Error]"));
 	}
 	else if (state == eLogger_Info)
 	{
-		memcpy(fstate, "[info] ", sizeof("[info] "));
+		memcpy(fstate, "[Info] ", sizeof("[Info] "));
 	}
 
 	if (savetime)
@@ -137,9 +137,9 @@ static void logger_printf(int state, const char* filename, int linenum, BOOL sav
 		logger_get_datetime(datetime);
 
 		if (strcmp("", fstate) == 0)
-			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s %s", datetime, format);
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "<%s> %s", datetime, format);
 		else
-			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "%s %s %s", datetime, fstate, format);
+			snprintf(fmt, KY_HTTP_MAX_LENGTH_MSG_LOG, "<%s> %s%s", datetime, fstate, format);
 	}
 	else
 	{
