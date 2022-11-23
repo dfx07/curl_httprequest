@@ -23,5 +23,5 @@
 #define OUT
 #endif
 
-#define KY_HTTP_ERR_BEGIN 0x0111122
+#define KY_HTTP_ERR_BEGIN 0x220C1100
 

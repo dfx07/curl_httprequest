@@ -178,6 +178,9 @@ public:
 
 	void reserve(unsigned int nsize)
 	{
+		if (nsize <= 0)
+			return ;
+
 		alloc(nsize, true);
 	}
 

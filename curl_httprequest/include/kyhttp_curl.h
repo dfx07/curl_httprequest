@@ -72,9 +72,9 @@ private:
 	std::string   m_str_rawtype; 
 
 private:
-	virtual HttpContentType GetType() const
+	virtual ContentType GetType() const
 	{
-		return HttpContentType::raw;
+		return ContentType::raw;
 	}
 
 	virtual void* InitContent(IN void* base)
@@ -183,9 +183,9 @@ private:
 	}
 
 private:
-	virtual HttpContentType GetType() const
+	virtual ContentType GetType() const
 	{
-		return HttpContentType::urlencoded;
+		return ContentType::urlencoded;
 	}
 
 	virtual void* InitContent(IN void* base)
@@ -221,15 +221,18 @@ class HttpMultipartContent : public HttpContent
 {
 	struct HttpContentPart
 	{
-		std::string					m_name;
-		std::string					m_value;
-		std::string					m_filename;
+		std::string			m_name;
+		std::string			m_value;
+		std::string			m_filename;
+		std::string			m_header_custom; //set a mime part's custom headers
 
-		struct // data field
+		struct // data field NO COPY
 		{
 			const void* m_data;
 			size_t		m_size;
 		};
+
+		HttpContentType m_type;
 	};
 
 private:
@@ -250,26 +253,44 @@ private:
 		m_curl_mine = curl_mime_init(curl);
 	}
 
-	INT AddPart(const HttpContentPart& part)
+	BOOL AddPart(const HttpContentPart& part_data)
 	{
 		if (!m_curl_mine) return FALSE;
 
 		/* Fill in the file upload field */
-		auto field = curl_mime_addpart(m_curl_mine);
+		curl_mimepart* pPart = curl_mime_addpart(m_curl_mine);
 
-		if (!field) return FALSE;
+		if (!pPart) return FALSE;
 
-		// [TODO] custom disposition_type define auto curl
-		if (part.m_data)
+		if (!part_data.m_header_custom.empty())
 		{
-			curl_mime_name(field, part.m_name.c_str());
-			curl_mime_filename(field, part.m_filename.c_str());
-			curl_mime_data(field, (const char*)part.m_data, part.m_size);
+			// headers auto free -> no need use slist free here
+			//struct curl_slist* headers = NULL;
+			//headers = curl_slist_append(headers, part_data.m_header_custom.c_str());
+
+			//curl_mime_headers(pPart, headers, TRUE);
+		}
+
+		// content-type for part not disposition_type
+		if (part_data.m_type != HttpContentType::Auto)
+		{
+			std::string str_ct_type = kyhttp::get_string_content_type(part_data.m_type);
+
+			str_ct_type.append("; AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12913\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"");
+
+			curl_mime_type(pPart, str_ct_type.c_str());
+		}
+
+		if (part_data.m_data)
+		{
+			curl_mime_name(pPart, part_data.m_name.c_str());
+			curl_mime_filename(pPart, part_data.m_filename.c_str());
+			curl_mime_data(pPart, (const char*)part_data.m_data, part_data.m_size);
 		}
 		else
 		{
-			curl_mime_name(field, part.m_name.c_str());
-			curl_mime_data(field, part.m_value.c_str(), CURL_ZERO_TERMINATED);
+			curl_mime_name(pPart, part_data.m_name.c_str());
+			curl_mime_data(pPart, part_data.m_value.c_str(), CURL_ZERO_TERMINATED);
 		}
 
 		return TRUE;
@@ -281,36 +302,42 @@ public:
 
 	}
 
-	void AddPartKeyValue(const char* name, const char* value)
+	void AddPartKeyValue(const char* name, const char* value, const char* header_custom = NULL)
 	{
 		HttpContentPart part;
 
-		//part.m_type  = HttpContentDispositionType::_Auto;
+		part.m_type  = HttpContentType::Auto;
 		part.m_name  = name;
 		part.m_value = value;
 		part.m_data  = NULL;
 		part.m_size  = 0;
+		part.m_header_custom = header_custom ? header_custom : "";
 
 		m_part_list.push_back(part);
 	}
 
-	void AddPartFile(const char* name, const char* filename,const void* data = NULL, size_t data_size = 0)
+	void AddPartFile(const char* name, const char* filename,
+					 const void* data = NULL, size_t data_size = 0,	  // file data
+					 HttpContentType type = HttpContentType::Auto,
+					 const char* header_custom = NULL)
 	{
 		HttpContentPart part;
 
-		//part.m_type   = HttpContentDispositionType::_Auto;
+		part.m_type     = type;
 		part.m_name     = name;
 		part.m_filename = filename;
 		part.m_data     = data;
 		part.m_size     = data_size;
 
+		part.m_header_custom = header_custom ? header_custom : "";
+
 		m_part_list.push_back(part);
 	}
 
 protected:
-	virtual HttpContentType GetType() const
+	virtual ContentType GetType() const
 	{
-		return HttpContentType::multipart;
+		return ContentType::multipart;
 	}
 
 	virtual void* InitContent(IN void* base)
@@ -345,11 +372,11 @@ private: // curl header data
 public:
 	~HttpRequest()
 	{
-		this->HeaderFree();
+		this->CurlHeaderFree();
 	}
 
 private:
-	void HeaderFree()
+	void CurlHeaderFree()
 	{
 		curl_slist_free_all(m_curl_slist);
 	}
@@ -363,7 +390,7 @@ private:
 private:
 	void* CreateHeaderData()
 	{
-		this->HeaderFree();
+		this->CurlHeaderFree();
 
 		auto append_curl_header = [](curl_slist** curl_slist, const char* format, ...)
 		{
@@ -381,7 +408,7 @@ private:
 			*curl_slist = curl_slist_append(*curl_slist, buf);
 		};
 
-		if (m_header_data.m_content_type != HttpDetailContentType::Auto)
+		if (m_header_data.m_content_type != HttpContentType::Auto)
 			append_curl_header(&m_curl_slist, "Content-Type: %s", get_string_content_type(m_header_data.m_content_type).c_str());
 		if (!m_header_data.m_host.empty())
 			append_curl_header(&m_curl_slist, "Host: %s", m_header_data.m_host.c_str());
@@ -407,7 +434,7 @@ private:
 		return m_curl_slist;
 	}
 
-	void* CreateContentData(IN void* base, IN HttpContentType& type)
+	void* CreateContentData(IN void* base, IN ContentType& type)
 	{
 		if (!m_content || !base)
 			return NULL;
@@ -429,7 +456,7 @@ public:
 		m_header_data.m_request_param = req_param;
 	}
 
-	virtual void SetContentType(IN HttpDetailContentType content_type)
+	virtual void SetContentType(IN HttpContentType content_type)
 	{
 		m_header_data.m_content_type = content_type;
 	}
@@ -468,7 +495,7 @@ private:
 protected:
 
 public:
-	HttpResponse() : m_status(HTTPCode::NODEFINE)
+	HttpResponse() : m_status(HttpStatusCode::NODEFINE)
 	{
 		m_header.reserve(1000);
 		m_content.reserve(1000);
@@ -477,21 +504,21 @@ public:
 protected:
 	virtual void Clear()
 	{
-		m_status = HTTPCode::NODEFINE;
+		m_status = HttpStatusCode::NODEFINE;
 		m_header.clear();
 		m_content.clear();
 		m_redirect_url.clear();
 	}
 
 public:
-	virtual void SaveToFile(const wchar_t* path_fileout, BOOL bExpStatuCode = FALSE, BOOL bRemoveOld = TRUE)
+	virtual void SaveToFile(const wchar_t* path_fileout, BOOL bExpStatusCode = FALSE, BOOL bRemoveOld = TRUE)
 	{
 		if (bRemoveOld)
 		{
 			kyhttp::write_data_file(path_fileout, NULL, 0);
 		}
 
-		if (bExpStatuCode)
+		if (bExpStatusCode)
 		{
 			char pre[500];
 			memset(pre, 0, 500);
@@ -503,9 +530,9 @@ public:
 		kyhttp::write_data_file_append(path_fileout, m_content.buffer(), m_content.length());
 	}
 
-	virtual HTTPCode GetStatusCode() const
+	virtual HttpStatusCode GetStatusCode() const
 	{
-		return static_cast<HTTPCode>(m_status);
+		return static_cast<HttpStatusCode>(m_status);
 	}
 
 	std::string GetRedirectUrl()
@@ -728,13 +755,13 @@ private:
 		if (option.m_max_upload_speed > 0)
 		{
 			// limit upload kb.s
-			curl_off_t max_speed = 1000 * m_option.m_max_upload_speed; // 25kB/s
+			curl_off_t max_speed = 1024L * m_option.m_max_upload_speed; // bytes/s
 			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MAX_SEND_SPEED_LARGE, max_speed));
 		}
 		if (option.m_max_download_speed > 0)
 		{
 			// limit download kb.s
-			curl_off_t max_speed = 1000 * m_option.m_max_download_speed; // 25kB/s
+			curl_off_t max_speed = 1024L * m_option.m_max_download_speed; // bytes/s
 			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MAX_RECV_SPEED_LARGE, m_option.m_max_download_speed));
 		}
 
@@ -874,20 +901,20 @@ private:
 		CURLcode curlcode = CURLE_OK;
 
 		// create content request data
-		HttpContentType type = HttpContentType::none;
+		ContentType type = ContentType::none;
 		void* content_request = request->CreateContentData(m_curl, type);
 
 		// use when post not data content
-		if (HttpMethod::POST == method && (content_request == NULL || HttpContentType::none == type))
+		if (HttpMethod::POST == method && (content_request == NULL || ContentType::none == type))
 		{
 			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, 0));
 		}
-		else if (HttpContentType::multipart == type)
+		else if (ContentType::multipart == type)
 		{
 			curl_mime* data_post = static_cast<curl_mime*>(content_request);
 			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_MIMEPOST, data_post));
 		}
-		else if (HttpContentType::urlencoded == type)
+		else if (ContentType::urlencoded == type)
 		{
 			HttpBuffer* buff = static_cast<HttpBuffer*>(content_request);
 			if (buff)
@@ -896,7 +923,7 @@ private:
 				PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, buff->length()));
 			}
 		}
-		else if (HttpContentType::raw == type)
+		else if (ContentType::raw == type)
 		{
 			HttpBuffer* buff = static_cast<HttpBuffer*>(content_request);
 			if (buff)
@@ -908,7 +935,7 @@ private:
 
 		// create header request data
 		curl_slist* header = static_cast<curl_slist*>(request->CreateHeaderData());
-		if (header && HttpContentType::raw == type)
+		if (header && ContentType::raw == type)
 		{
 			HttpRawContent* rawHttp = static_cast<HttpRawContent*>(request->m_content);
 			if (rawHttp)
@@ -959,9 +986,8 @@ private:
 
 		curlret = curl_easy_perform(m_curl);
 
-		int iTry = 0; // try connection
-		while (CURLcode::CURLE_OPERATION_TIMEDOUT == curlret &&
-			iTry < m_option.m_retry_connet)
+		unsigned int iTry = 0; // try connection
+		while (CURLcode::CURLE_OPERATION_TIMEDOUT == curlret && iTry < m_option.m_retry_connet)
 		{
 			KY_HTTP_LOG_WARN("connection time out! %s -> Trying: %u.", link.c_str(), iTry + 1);
 			curlret = curl_easy_perform(m_curl);
@@ -981,7 +1007,6 @@ private:
 		if (curl_easy_getinfo(m_curl, CURLINFO_SIZE_UPLOAD, &value_size) == CURLE_OK)
 		{
 			m_upload_size += value_size;
-			m_upload_size += m_progress.m_total_upload;
 		}
 
 		// download request infomation
@@ -1002,7 +1027,7 @@ private:
 
 		m_response->m_status = http_code;
 
-		if (http_code == HTTPCode::MOVED_PERMANENTLY)
+		if (http_code == HttpStatusCode::MOVED_PERMANENTLY)
 		{
 			this->InitClearResponse();
 			
@@ -1104,7 +1129,7 @@ public:
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;
 		}
 
-		if (this->CreateRequestData(HttpMethod::POST, request) != HTTPStatusCode::OK)
+		if (this->CreateRequestData(HttpMethod::POST, request) != HttpErrorCode::KY_HTTP_OK)
 		{
 			KY_HTTP_LOG_ERROR(L" ->[Failed] set request parameter failed !");
 			return HttpErrorCode::KY_HTTP_CREATE_REQUEST_FAIL;

@@ -1,5 +1,5 @@
 /*!**********************************************************************
-* @copyright Copyright (C) 2022 thuong.nv -email: mark.ngo@kohyoung.com.\n
+* @copyright Copyright (C) 2022 thuong.nv -( mark.ngo@kohyoung.com.)\n
 *            All rights reserved.
 *************************************************************************
 * @file     kyhttp.h
@@ -19,73 +19,69 @@
 
 __BEGIN_NAMESPACE__
 
-interface HttpClient;
+class HttpClient;
 typedef std::shared_ptr<HttpClient> HttpClientPtr;
-
-interface HttpHeader;
-typedef std::shared_ptr<HttpHeader> HttpHeaderPtr;
 
 interface HttpContent;
 typedef std::shared_ptr<HttpContent> HttpContentPtr;
 
-interface HttpRequest;
+class HttpRequest;
 typedef std::shared_ptr<HttpRequest> HttpRequestPtr;
 
-interface HttpResponse;
+class HttpResponse;
 typedef std::shared_ptr<HttpResponse> HttpResponsePtr;
+
+class HttpMultipartContent;
+typedef std::shared_ptr<HttpMultipartContent> HttpMultipartContentPtr;
+
+class HttpRawContent;
+typedef std::shared_ptr<HttpRawContent> HttpRawContentPtr;
+
+class HttpUrlEncodedContent;
+typedef std::shared_ptr<HttpUrlEncodedContent> HttpUrlEncodedContentPtr;
 
 class Uri;
 
 
-enum HTTPCode
+enum HttpStatusCode
 {
-	NODEFINE				= -1 , // No support
-	SUCCESS					= 200, // The request succeeded
-	ACCEPTED				= 202, // The request has been received but not yet acted upon
-	NO_CONTENT				= 204, // There is no content to send for this request, but the headers may be useful
-	MOVED_PERMANENTLY		= 301, // The URL of the requested resource has been changed permanently. The new URL is given in the response.
-	SEE_OTHER				= 303, // This response code means that the URI of requested resource has been changed temporarily
-	BAD_REQUEST				= 400, // The server cannot or will not process the request due to something that is perceived to be a client error 
-	UNAUTHORIZED			= 401, // Although the HTTP standard specifies "unauthorized"
-	FORBIDDEN				= 403, // The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource
-	NOT_FOUND				= 404, // The server cannot find the requested resource
-	METHOD_NOT_ALLOWED		= 405, // The request method is known by the server but is not supported by the target resource
-	INTERNAL_SERVER_ERROR	= 500, // The server has encountered a situation it does not know how to handle
-	NOT_IMPLEMENTED			= 501, // The request method is not supported by the server and cannot be handled
-	SERVICE_UNAVAILABLE		= 503, // The server is not ready to handle the request
-};
-
-enum HTTPStatusCode
-{
-	OK						= 0x00000,
-	FAILED					= 0x00002,
-	NONE					= 0x00004,
-	CONNECT_FAILED			= 0x00008,
-	POST_FAILED				= 0x00016,
-	CREATE_FAILED			= 0x00032,
+	NODEFINE							= -1 , // No support
+	SUCCESS								= 200, // The request succeeded
+	ACCEPTED							= 202, // The request has been received but not yet acted upon
+	NO_CONTENT							= 204, // There is no content to send for this request, but the headers may be useful
+	MOVED_PERMANENTLY					= 301, // The URL of the requested resource has been changed permanently. The new URL is given in the response.
+	SEE_OTHER							= 303, // This response code means that the URI of requested resource has been changed temporarily
+	BAD_REQUEST							= 400, // The server cannot or will not process the request due to something that is perceived to be a client error 
+	UNAUTHORIZED						= 401, // Although the HTTP standard specifies "unauthorized"
+	FORBIDDEN							= 403, // The client does not have access rights to the content; that is, it is unauthorized, so the server is refusing to give the requested resource
+	NOT_FOUND							= 404, // The server cannot find the requested resource
+	METHOD_NOT_ALLOWED					= 405, // The request method is known by the server but is not supported by the target resource
+	INTERNAL_SERVER_ERROR				= 500, // The server has encountered a situation it does not know how to handle
+	NOT_IMPLEMENTED						= 501, // The request method is not supported by the server and cannot be handled
+	SERVICE_UNAVAILABLE					= 503, // The server is not ready to handle the request
 };
 
 enum HttpErrorCode
 {
-	KY_HTTP_FAILED						= 99999,
-	KY_HTTP_OK							= 0,
-	KY_HTTP_COULDNT_RESOLVE_PROXY		= KY_HTTP_ERR_BEGIN + 1,
-	KY_HTTP_COULDNT_RESOLVE_HOST		= KY_HTTP_ERR_BEGIN + 2,
-	KY_HTTP_COULDNT_CONNECT				= KY_HTTP_ERR_BEGIN + 3,
-	KY_HTTP_OUT_OF_MEMORY				= KY_HTTP_ERR_BEGIN + 4,
-	KY_HTTP_SSL_HANDSHAKE_FAIL			= KY_HTTP_ERR_BEGIN + 5,
-	KY_HTTP_SERVER_FAILED_VERIFICATION	= KY_HTTP_ERR_BEGIN + 6,
-	KY_HTTP_SEND_ERROR					= KY_HTTP_ERR_BEGIN + 7,
-	KY_HTTP_RECV_ERROR					= KY_HTTP_ERR_BEGIN + 8,
-	KY_HTTP_SSL_CERTPROBLEM				= KY_HTTP_ERR_BEGIN + 9,
-	KY_HTTP_REQUEST_TIMEOUT				= KY_HTTP_ERR_BEGIN + 10,
-	KY_HTTP_CREATE_REQUEST_FAIL			= KY_HTTP_ERR_BEGIN + 11,
+	KY_HTTP_FAILED						= -1,							  // Error not define
+	KY_HTTP_OK							=  0,
+	KY_HTTP_COULDNT_RESOLVE_PROXY		= KY_HTTP_ERR_BEGIN + 0x00000001, // Couldn't resolve proxy name
+	KY_HTTP_COULDNT_RESOLVE_HOST		= KY_HTTP_ERR_BEGIN + 0x00000002, // Coundn't resolve host name ->IP
+	KY_HTTP_COULDNT_CONNECT				= KY_HTTP_ERR_BEGIN + 0x00000003, // Couldn't connect to server
+	KY_HTTP_OUT_OF_MEMORY				= KY_HTTP_ERR_BEGIN + 0x00000004, // Out of memory
+	KY_HTTP_SSL_HANDSHAKE_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000005, // SSL connect error
+	KY_HTTP_SERVER_FAILED_VERIFICATION	= KY_HTTP_ERR_BEGIN + 0x00000006, // SSL peer certificate or SSH remote key was not OK
+	KY_HTTP_SEND_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000007, // Send data failed
+	KY_HTTP_RECV_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000008, // secv data failed
+	KY_HTTP_SSL_CERTPROBLEM				= KY_HTTP_ERR_BEGIN + 0x00000009, // Problem with the local SSL certificate
+	KY_HTTP_REQUEST_TIMEOUT				= KY_HTTP_ERR_BEGIN + 0x00000010, // Connetion timeout
+	KY_HTTP_CREATE_REQUEST_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000011, // CUSTOM: init request failed
 };
 
 #define PASS_ERROR_CODE(code, exec) if(code == HttpErrorCode::KY_HTTP_OK) { code = exec;}
 #define PASS_CURL_EXEC(code, exec) if(code == CURLcode::CURLE_OK) { code = exec;}
 
-enum HttpContentType
+enum ContentType
 {
 	none		,
 	urlencoded	,
@@ -94,7 +90,7 @@ enum HttpContentType
 	audio		,
 };
 
-enum HttpDetailContentType
+enum HttpContentType
 {
 	// application
 	Auto,
@@ -115,27 +111,7 @@ enum HttpDetailContentType
 	multipart_form_data				,
 };
 
-enum HttpContentDispositionType
-{
-	_Auto,
-	_form_data,
-};
-
-static std::string get_string_content_disposition_type(HttpContentDispositionType type)
-{
-	switch (type)
-	{
-	case kyhttp::Auto:
-		break;
-	case kyhttp::_form_data:
-		return "form-data";
-		break;
-	}
-
-	return "";
-}
-
-static std::string get_string_content_type(HttpDetailContentType type)
+static std::string get_string_content_type(HttpContentType type)
 {
 	switch (type)
 	{
@@ -200,11 +176,11 @@ enum ProxyType
 struct WebProxy
 {
 	std::string  m_hostname;
-	unsigned int m_port;
+	UINT		 m_port;
 	ProxyType	 m_proxy_type;
-	std::wstring m_username;
+	std::string	 m_username;
 	std::string  m_proxy_domain;
-	std::wstring m_password;
+	std::string	 m_password;
 };
 
 struct SSLSetting
@@ -218,21 +194,13 @@ struct HttpCookie
 
 };
 
-struct HttpRequestOption
-{
-	INT		m_retry_connet;		  // count
-	float	m_connect_timout;	  // milliseconds
-	float	m_max_download_speed; // kb/s
-	float	m_max_upload_speed;	  // kb/s
-};
-
 struct HttpClientOption
 {
 	BOOL	m_show_request = TRUE;		// show request
-	INT		m_retry_connet;				// count
-	LONG	m_connect_timout = 0;		// milliseconds
-	float	m_max_download_speed;		// kb/s
-	float	m_max_upload_speed;			// kb/s
+	UINT	m_retry_connet;				// count
+	ULONG	m_connect_timout = 0;		// milliseconds
+	ULONG	m_max_download_speed;		// kb/s
+	ULONG	m_max_upload_speed;			// kb/s
 	BOOL	m_auto_redirect = FALSE;	// auto redict  | TRUE / FALSE
 };
 
@@ -250,11 +218,11 @@ struct HttpClientProgress
 
 struct HttpHeaderData
 {
-	std::string				 m_request_param;		// :))
-	std::string				 m_host;				// :))
-	HttpDetailContentType	 m_content_type;		// :))
-	std::string				 m_accept_encoding;		// :))
-	std::string				 m_accept;				// :))
+	std::string			m_request_param;	// :custom request param
+	std::string			m_host;				// :custom host request
+	HttpContentType		m_content_type;		// :n/a
+	std::string			m_accept_encoding;	// :specify accept encoding 
+	std::string			m_accept;			// :specify accept header
 
 	std::vector<std::string> m_extension;
 };
@@ -266,7 +234,7 @@ interface HttpContent
 {
 protected:
 	virtual void* InitContent(IN void* base = NULL) = 0;
-	virtual HttpContentType GetType() const = 0;
+	virtual ContentType GetType() const = 0;
 
 	friend class HttpRequest;
 };
@@ -292,6 +260,7 @@ interface IHttpClient
 ===================================================================================*/
 class IKeyValue
 {
+protected:
 	struct KeyValueParam;
 	typedef std::vector<KeyValueParam> KEY_VALUE_LIST;
 
@@ -303,7 +272,7 @@ protected:
 	};
 
 protected:
-	KEY_VALUE_LIST m_keyvalue;
+	KEY_VALUE_LIST	m_keyvalue;
 
 public:
 	void AddKeyValue(const char* key, const char* value)
@@ -349,8 +318,7 @@ public:
 
 /*==================================================================================
 * class Uri : Uniform Resource Identifier
-* Include : + location
-*			+ query param
+* Include : location, query param
 ===================================================================================*/
 class Uri : private IKeyValue
 {
