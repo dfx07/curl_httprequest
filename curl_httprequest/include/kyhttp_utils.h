@@ -59,9 +59,12 @@ static int write_data_file(IN const wchar_t* path, IN const void* data, IN const
 
 	if (nsize <= 0 || !data)
 	{
-		fwrite(data, sizeof(char), nsize, file);
+		fclose(file);
+		return 1;
 	}
-	fclose(file);
+
+	fwrite(data, sizeof(char), nsize, file);
+	
 	return 1;
 }
 

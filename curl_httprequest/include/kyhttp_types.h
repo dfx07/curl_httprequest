@@ -71,15 +71,17 @@ enum HttpErrorCode
 	KY_HTTP_OUT_OF_MEMORY				= KY_HTTP_ERR_BEGIN + 0x00000004, // Out of memory
 	KY_HTTP_SSL_HANDSHAKE_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000005, // SSL connect error
 	KY_HTTP_SERVER_FAILED_VERIFICATION	= KY_HTTP_ERR_BEGIN + 0x00000006, // SSL peer certificate or SSH remote key was not OK
-	KY_HTTP_SEND_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000007, // Send data failed
-	KY_HTTP_RECV_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000008, // secv data failed
+	KY_HTTP_SEND_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000007, // Send data error
+	KY_HTTP_RECV_ERROR					= KY_HTTP_ERR_BEGIN + 0x00000008, // Receive data error
 	KY_HTTP_SSL_CERTPROBLEM				= KY_HTTP_ERR_BEGIN + 0x00000009, // Problem with the local SSL certificate
 	KY_HTTP_REQUEST_TIMEOUT				= KY_HTTP_ERR_BEGIN + 0x00000010, // Connetion timeout
-	KY_HTTP_CREATE_REQUEST_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000011, // CUSTOM: init request failed
+	KY_HTTP_CREATEDATA_REQUEST_FAIL		= KY_HTTP_ERR_BEGIN + 0x00000011, // CUSTOM: create request data failed
+	KY_HTTP_INIT_REQUEST_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000012, // CUSTOM: init request failed
 };
 
 #define PASS_ERROR_CODE(code, exec) if(code == HttpErrorCode::KY_HTTP_OK) { code = exec;}
-#define PASS_CURL_EXEC(code, exec) if(code == CURLcode::CURLE_OK) { code = exec;}
+#define PASS_CURL_EXEC(code, exec)  if(code == CURLcode::CURLE_OK) { code = exec;}
+#define CHECK_HTTP_ERROR_OK(code, exec) ((code = exec) == HttpErrorCode::KY_HTTP_OK)
 
 enum ContentType
 {
@@ -352,6 +354,19 @@ public:
 			query_param.append("&" + param.key + "=" + param.value);
 		}
 		return query_param;
+	}
+
+	std::string get_url() const
+	{
+		std::string url = location;
+		std::string query_param = get_query_param();
+
+		if (!query_param.empty())
+		{
+			url.append("?" + query_param);
+		}
+
+		return url;
 	}
 
 	friend class HttpClient;

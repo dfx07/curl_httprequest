@@ -57,7 +57,7 @@ void upload_file_to(IN		const kyhttp::Uri& uri,
 	path_send_data.append(path_file_upload);
 	int file_size = kyhttp::read_data_file(path_send_data.c_str(), &data);
 	char* file_data = static_cast<char*>(data);
-	std::string content_param = "AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12913\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"";
+	std::string content_param = "AgentId=\"492F183D-404E-4088-B49C-0A183F5ADA4E\"; AuthToken=\"12923\"; UserId=\"e\"; JobId=\"6226119\"; GroupSeq=\"0\"";
 
 	kyhttp::HttpMultipartContentPtr content = std::make_shared<kyhttp::HttpMultipartContent>();
 	
@@ -75,6 +75,23 @@ void upload_file_to(IN		const kyhttp::Uri& uri,
 	std::wstring path_response_data(FOLDER_API_RESPONSE_DATA);
 	path_response_data.append(path_file_response);
 	response->SaveToFile(path_response_data.c_str(), TRUE);
+}
+
+void Get_Test()
+{
+	kyhttp::Uri uri;
+	uri.set_location("http://www.youtube.com/");
+
+	kyhttp::HttpClientOption option;
+
+	option.m_auto_redirect = TRUE;
+
+	// use setup parameter
+	kyhttp::HttpClientPtr  client = std::make_shared<kyhttp::HttpClient>();
+	client->Configunation(option);
+
+	kyhttp::HttpErrorCode err = client->Request(kyhttp::GET, uri, nullptr);
+	auto response = client->Response();
 }
 
 void KSMARTLogin()
@@ -175,7 +192,7 @@ void download_file()
 void upload_file_multipart()
 {
 	kyhttp::Uri uri;
-	uri.set_location("http://192.168.111.247:8088/upload_job");
+	uri.set_location("http://192.168.111.247:80/upload_job");
 	//uri.set_location("http://webhook.site/304543bb-1f4e-4406-bd0c-3350941545f8");
 
 	kyhttp::HttpClientPtr  client = std::make_shared<kyhttp::HttpClient>();
@@ -184,14 +201,17 @@ void upload_file_multipart()
 
 	option.m_retry_connet = 3;
 	client->Configunation(option);
-	//upload_file_to(uri, client, L"job_upload_test.kyjob", L"upload_file_multipart_response.txt");
-	upload_file_to(uri, client, L"job_kyhttp_test.kyjob", L"upload_file_multipart_response.txt");
+	upload_file_to(uri, client, L"job_upload_test.kyjob", L"upload_file_multipart_response.txt");
+	//upload_file_to(uri, client, L"job_kyhttp_test.kyjob", L"upload_file_multipart_response.txt");
 }
 
 
 
 int main()
 {
+	//0. get test
+	//Get_Test();
+
 	//1. login ksmart
 	//KSMARTLogin();
 
