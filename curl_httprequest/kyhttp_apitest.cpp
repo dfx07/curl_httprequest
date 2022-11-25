@@ -80,11 +80,14 @@ void upload_file_to(IN		const kyhttp::Uri& uri,
 void Get_Test()
 {
 	kyhttp::Uri uri;
-	uri.set_location("http://www.youtube.com/");
+	//uri.set_location("http://192.168.111.247:80");
+	uri.set_location("https://youtube.com");
 
 	kyhttp::HttpClientOption option;
 
-	option.m_auto_redirect = TRUE;
+	option.m_auto_redirect  = FALSE;
+	option.m_process_cookie = TRUE;
+	option.m_get_server_time = TRUE;
 
 	// use setup parameter
 	kyhttp::HttpClientPtr  client = std::make_shared<kyhttp::HttpClient>();
@@ -92,6 +95,8 @@ void Get_Test()
 
 	kyhttp::HttpErrorCode err = client->Request(kyhttp::GET, uri, nullptr);
 	auto response = client->Response();
+
+	int c = 10;
 }
 
 void KSMARTLogin()
@@ -201,8 +206,8 @@ void upload_file_multipart()
 
 	option.m_retry_connet = 3;
 	client->Configunation(option);
-	upload_file_to(uri, client, L"job_upload_test.kyjob", L"upload_file_multipart_response.txt");
-	//upload_file_to(uri, client, L"job_kyhttp_test.kyjob", L"upload_file_multipart_response.txt");
+	//upload_file_to(uri, client, L"job_upload_test.kyjob", L"upload_file_multipart_response.txt");
+	upload_file_to(uri, client, L"job_kyhttp_test.kyjob", L"upload_file_multipart_response.txt");
 }
 
 
@@ -210,7 +215,7 @@ void upload_file_multipart()
 int main()
 {
 	//0. get test
-	//Get_Test();
+	Get_Test();
 
 	//1. login ksmart
 	//KSMARTLogin();
@@ -239,7 +244,7 @@ int main()
 	//download_file();
 
 	//9. upload file
-	upload_file_multipart();
+	//upload_file_multipart();
 	getchar();
 
 	return 1;

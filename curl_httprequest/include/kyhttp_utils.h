@@ -188,5 +188,34 @@ static std::wstring convert_mb_to_wstring(IN const char* mb, IN const int& nsize
 	return utf16;
 }
 
+static time_t convert_to_second_epoch(const std::chrono::system_clock::time_point& time_point)
+{
+	using namespace std::chrono;
+	seconds ms = duration_cast<seconds>(time_point.time_since_epoch());
+	return ms.count();
+}
+
+static time_t convert_to_second_epoch_addday(time_t begin, long addday)
+{
+	using namespace std::chrono;
+	std::chrono::system_clock::time_point begin_t = std::chrono::system_clock::from_time_t(begin);
+	std::chrono::system_clock::time_point new_t = begin_t + hours(addday * 24);
+
+	return convert_to_second_epoch(new_t);
+}
+
+static std::string second_epoch_to_string(time_t t, const char* format = "%d-%m-%Y %H-%M-%S")
+{
+	struct tm tm;
+	auto err = gmtime_s(&tm, &t);
+
+	if (!err)
+		return "";
+
+	std::ostringstream oss;
+	oss << std::put_time(&tm, format);
+	return oss.str();
+}
+
 
 __END___NAMESPACE__

@@ -26,19 +26,19 @@ int main2()
 	//proxy.m_hostname = "85.208.107.192";
 	//proxy.m_port = 1337;
 
-	kyhttp::HttpCookie cookie;
+	//kyhttp::HttpCookie cookie;
 
-	kyhttp::SSLSetting sslsetting;
-	//sslsetting.m_disable_verify_ssl_certificate = true;
-	//sslsetting.m_disable_verify_host_certificate = true;
+	//kyhttp::SSLSetting sslsetting;
+	////sslsetting.m_disable_verify_ssl_certificate = true;
+	////sslsetting.m_disable_verify_host_certificate = true;
 
-	kyhttp::HttpClient* client = new kyhttp::HttpClient();
-	client->Configunation(option);
-	client->SettingProxy(proxy);
-	client->SettingSSL(sslsetting);
-	client->SettingCookie(cookie);
+	//kyhttp::HttpClient* client = new kyhttp::HttpClient();
+	//client->Configunation(option);
+	//client->SettingProxy(proxy);
+	//client->SettingSSL(sslsetting);
+	//client->SettingCookie(cookie);
 
-	kyhttp::HttpRequest* request = new kyhttp::HttpRequest();
+	//kyhttp::HttpRequest* request = new kyhttp::HttpRequest();
 
 	//========== 1. POST test ============
 	//std::string data = "3242352352352623";
@@ -55,26 +55,26 @@ int main2()
 
 	//kyhttp::HttpErrorCode err = client->Post(uri, request);
 
-	std::string data = "{ \"ten\" : \"ngo van thuong\"}";
+	//std::string data = "{ \"ten\" : \"ngo van thuong\"}";
 
-	kyhttp::HttpRawContent* content = new kyhttp::HttpRawContent();
-	content->SetRawType(kyhttp::HttpRawContent::html);
-	content->SetRawData(data.c_str(), data.length());
+	//kyhttp::HttpRawContent* content = new kyhttp::HttpRawContent();
+	//content->SetRawType(kyhttp::HttpRawContent::html);
+	//content->SetRawData(data.c_str(), data.length());
 
-	////========== 2. GET test ============
-	//client->SettingProxy();
-	//client->SettingCookie();
+	//////========== 2. GET test ============
+	////client->SettingProxy();
+	////client->SettingCookie();
 
 
-	request->SetContent(content);
+	//request->SetContent(content);
 
-	kyhttp::HttpErrorCode err = client->Request(kyhttp::POST, uri, request);
+	//kyhttp::HttpErrorCode err = client->Request(kyhttp::POST, uri, request);
 
-	auto a = client->Response();
-	kyhttp::HttpStatusCode code = a->GetStatusCode();
+	//auto a = client->Response();
+	//kyhttp::HttpStatusCode code = a->GetStatusCode();
 
-	delete client;
-	delete request;
+	//delete client;
+	//delete request;
 
 
 	//std::string data = "122324324532543655";
@@ -94,6 +94,86 @@ int main2()
 
 	return 1;
 }
+
+using namespace kyhttp;
+
+
+
+typedef std::shared_ptr<HttpCookieData> HttpCookieDataPtr;
+typedef std::vector<HttpCookieDataPtr> COOKIE_LIST;
+struct HttpCookie
+{
+	COOKIE_LIST m_data_list;
+
+	HttpCookieDataPtr CreateCookieFrom(const char* str_cookie)
+	{
+		HttpCookieDataPtr cookie = std::make_shared<HttpCookieData>();
+		std::stringstream ss(str_cookie);
+		std::string buff; int count = 0;
+
+		while (std::getline(ss, buff, '\t'))
+		{
+			switch (count)
+			{
+			case 0: cookie->m_domain_name = buff; 
+				break;
+			case 1: cookie->m_include_subdomains = !strcmp(buff.c_str(), "FALSE") ? FALSE : TRUE;
+				break;
+			case 2: cookie->m_path = buff;
+				break;
+			case 3: cookie->m_secure = !strcmp(buff.c_str(), "FALSE") ? FALSE : TRUE;
+				break;
+			case 4: cookie->m_expires = atoi(buff.c_str());
+				break;
+			case 5: cookie->m_name = buff;
+				break;
+			case 6: cookie->m_content = buff;
+				break;
+			default:
+				break;
+			}
+			count++;
+		}
+
+		return cookie;
+	}
+
+	std::string ToString()
+	{
+		std::string temp;
+		for (int i = 0; i <= m_data_list.size(); i++)
+		{
+			auto cookie = m_data_list[i];
+			temp = cookie->m_domain_name +
+				COOKIE_SEP + (cookie->m_include_subdomains ? "TRUE" : "FALSE") +
+				COOKIE_SEP + cookie->m_path +
+				COOKIE_SEP + (cookie->m_secure ? "TRUE" : "FALSE") +
+				COOKIE_SEP + std::to_string(cookie->m_expires) +
+				COOKIE_SEP + cookie->m_name +
+				COOKIE_SEP + cookie->m_content + '\n';
+		}
+
+		return temp;
+	}
+
+	void Clear()
+	{
+		m_data_list.clear();
+	}
+
+	BOOL Save(const wchar_t* path)
+	{
+		std::string cont = ToString();
+		return kyhttp::write_data_file(path, cont.c_str(), cont.length());
+	}
+
+	BOOL Add(const char* str_cookie)
+	{
+		auto cookie = CreateCookieFrom(str_cookie);
+		m_data_list.push_back(cookie);
+		return TRUE;
+	}
+};
 
 int main3()
 {
@@ -177,11 +257,18 @@ int main3()
 				//	break;
 				//default:
 				//	kyhttp_error_code = KY_HTTP_FAILED;
-	std::string a = curl_easy_strerror(CURLE_COULDNT_RESOLVE_HOST);
-	std::string a1 = curl_easy_strerror(CURLE_COULDNT_CONNECT);
-	std::string a2 = curl_easy_strerror(CURLE_OUT_OF_MEMORY);
-	std::string a3 = curl_easy_strerror(CURLE_SSL_CERTPROBLEM);
-	std::string a4 = curl_easy_strerror(CURLE_OPERATION_TIMEDOUT);
+	//std::string a = curl_easy_strerror(CURLE_COULDNT_RESOLVE_HOST);
+	//std::string a1 = curl_easy_strerror(CURLE_COULDNT_CONNECT);
+	//std::string a2 = curl_easy_strerror(CURLE_OUT_OF_MEMORY);
+	//std::string a3 = curl_easy_strerror(CURLE_SSL_CERTPROBLEM);
+	//std::string a4 = curl_easy_strerror(CURLE_OPERATION_TIMEDOUT);
+
+
+	//HttpCookie cookie;
+
+	//char a[]= "example.com	1462299217	/foobar/	FALSE	1462299217	person	daniel";
+	//cookie.Add(a);
+
 	getchar();
 	return 1;
 }

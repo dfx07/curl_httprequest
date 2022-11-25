@@ -77,11 +77,14 @@ enum HttpErrorCode
 	KY_HTTP_REQUEST_TIMEOUT				= KY_HTTP_ERR_BEGIN + 0x00000010, // Connetion timeout
 	KY_HTTP_CREATEDATA_REQUEST_FAIL		= KY_HTTP_ERR_BEGIN + 0x00000011, // CUSTOM: create request data failed
 	KY_HTTP_INIT_REQUEST_FAIL			= KY_HTTP_ERR_BEGIN + 0x00000012, // CUSTOM: init request failed
+	KY_HTTP_USER_FORCE_STOP				= KY_HTTP_ERR_BEGIN + 0x00000013, // CUSTOM: user force stop
 };
 
 #define PASS_ERROR_CODE(code, exec) if(code == HttpErrorCode::KY_HTTP_OK) { code = exec;}
 #define PASS_CURL_EXEC(code, exec)  if(code == CURLcode::CURLE_OK) { code = exec;}
 #define CHECK_HTTP_ERROR_OK(code, exec) ((code = exec) == HttpErrorCode::KY_HTTP_OK)
+
+#define COOKIE_SEP  "\t"
 
 enum ContentType
 {
@@ -177,34 +180,40 @@ enum ProxyType
 
 struct WebProxy
 {
-	std::string  m_hostname;
-	UINT		 m_port;
-	ProxyType	 m_proxy_type;
-	std::string	 m_username;
-	std::string  m_proxy_domain;
-	std::string	 m_password;
+	std::string  m_hostname;				// Host ip		:Ex: 192.168.111.124
+	UINT		 m_port;					// Port number  :Ex: 80
+	ProxyType	 m_proxy_type;				// Connect type :HTTP, HTTPS, SOCKS4, SOCKS4A, SOCKS5
+	std::string	 m_username;				// User name
+	std::string	 m_password;				// Password
 };
 
 struct SSLSetting
 {
-	BOOL m_disable_verify_ssl_certificate  = FALSE; // verify ssl certificate
-	BOOL m_disable_verify_host_certificate = FALSE; // verify host certificate
+	BOOL m_verify_ssl_certificate  = TRUE;  // Verify ssl certificate
+	BOOL m_verify_host_certificate = TRUE;  // Verify host certificate
 };
 
-struct HttpCookie
+struct HttpCookieData
 {
-	std::string m_cookie_send;
-	std::string m_cookie_recv;
+	std::string		m_domain_name;			// Domain name
+	BOOL			m_include_subdomains;	// Include subdomains boolean  TRUE|FALSE
+	std::string		m_path;					// Path
+	BOOL			m_secure;				// Set over a secure transport
+	time_t			m_expires;				// Expires at – seconds since Jan 1st 1900, or 0
+	std::string		m_name;					// Name of the cookie
+	std::string		m_content;				// Value of the cookie
 };
 
 struct HttpClientOption
 {
-	BOOL	m_show_request = TRUE;		// show request
-	UINT	m_retry_connet;				// count
-	ULONG	m_connect_timout = 0;		// milliseconds
-	ULONG	m_max_download_speed;		// kb/s
-	ULONG	m_max_upload_speed;			// kb/s
-	BOOL	m_auto_redirect = FALSE;	// auto redict  | TRUE / FALSE
+	BOOL	m_show_request = TRUE;			// Show request
+	UINT	m_retry_connet;					// Number of connection attempts if failed
+	ULONG	m_connect_timout = 0;			// Time-out connect operations after this amount of seconds				- milliseconds
+	ULONG	m_max_download_speed;			// Limit-rate: maximum number of bytes per second to receive			- kb/s
+	ULONG	m_max_upload_speed;				// Limit-rate: maximum number of bytes per second to send				- kb/s
+	BOOL	m_auto_redirect = FALSE;		// automatically send request if response is move MOVED_PERMANENTLY		|TRUE / FALSE
+	BOOL	m_process_cookie = FALSE;		// does not process cookies received									|TRUE / FALSE
+	BOOL	m_get_server_time = FALSE;		// flag get system time information based on response					|TRUE / FALSE
 };
 
 struct HttpClientProgress
@@ -254,7 +263,7 @@ interface IHttpClient
 	virtual void			Configunation(IN HttpClientOption& option) = 0;
 	virtual void			SettingProxy(IN WebProxy& proxy_info)  = 0;
 	virtual void			SettingSSL(IN SSLSetting& ssl_setting) = 0;
-	virtual void			SettingCookie(IN HttpCookie& cookie) = 0;
+	virtual void			AddCookie(IN const char* str_cookie) = 0;
 	virtual HttpResponsePtr Response() const = 0;
 };
 
@@ -370,6 +379,45 @@ public:
 	}
 
 	friend class HttpClient;
+};
+
+/*==================================================================================
+* Template class ArrayObject : list vector share pointer object
+===================================================================================*/
+template<typename T>
+class ArrayObject
+{
+public:
+	typedef std::shared_ptr<T>   ObjectPtr;
+	typedef std::vector<ObjectPtr> OBJECT_LIST;
+
+protected:
+	OBJECT_LIST m_data_list;
+
+public:
+	ObjectPtr operator[](const size_t i)
+	{
+		return this->Get(i);
+	}
+
+	ObjectPtr Get(const size_t i)
+	{
+		if (i >= 0 && i < m_data_list.size())
+		{
+			return m_data_list[i];
+		}
+		return nullptr;
+	}
+
+	virtual void Clear()
+	{
+		m_data_list.clear();
+	}
+
+	bool Empty()
+	{
+		return m_data_list.empty();
+	}
 };
 
 __END___NAMESPACE__

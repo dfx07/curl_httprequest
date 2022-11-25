@@ -14,7 +14,9 @@
 #include <string>
 #include <vector>
 #include <iomanip>
+#include <chrono>
 #include <sstream>
+#include <ctime>
 #include <curl/curl.h>
 
 #include "kyhttp_types.h"
@@ -507,11 +509,13 @@ private:
 	HttpBuffer		m_header;
 	HttpBuffer		m_content;
 
-	std::string		m_redirect_url;
+	time_t			m_server_time;  // get second epoch
+	std::string		m_redirect_url; // get
 protected:
 
 public:
-	HttpResponse() : m_status(HttpStatusCode::NODEFINE)
+	HttpResponse() : m_status(HttpStatusCode::NODEFINE),
+		m_server_time(0)
 	{
 		m_header.reserve(1000);
 		m_content.reserve(1000);
@@ -524,6 +528,59 @@ protected:
 		m_header.clear();
 		m_content.clear();
 		m_redirect_url.clear();
+	}
+
+	BOOL SetTimeServer(const char* str_time)
+	{
+		if (strncmp((char*)(str_time), "Date:", 5) != 0)
+			return FALSE;
+
+		auto convert_to_int_month = [](const char* month) // [0->11]
+		{
+			const char* mthstr[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+				"Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+			for (int i = 0; i < 12; i++)
+			{
+				if (strcmp(mthstr[i], month) == 0)
+					return i;
+			}
+			return -1;
+		};
+
+		auto convert_to_int_day_of_week = [](const char* dayofweek) // [0->6]
+		{
+			const char* daystr[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+			for (int i = 0; i < 7; i++)
+			{
+				if (strstr(dayofweek, daystr[i]))
+					return i;
+			}
+			return -1;
+		};
+
+		struct tm tm {};
+		const unsigned int mxlength = 26;
+		char strdayofweek[mxlength]{0};
+		char strmonth[mxlength]{0};
+
+		//Ex:Date: Fri, 25 Nov 2022 10:47:10 GMT
+		auto ret = sscanf_s((char*)str_time, "Date: %s %d %s %d %d:%d:%d",
+			strdayofweek, mxlength, &tm.tm_mday, strmonth, mxlength, &tm.tm_year,
+			&tm.tm_hour, &tm.tm_min,
+			&tm.tm_sec);
+
+		tm.tm_mon = convert_to_int_month(strmonth);
+		tm.tm_year = tm.tm_year - 1900; // year passed since 1900 
+
+		m_server_time = mktime(&tm);
+		
+		if (m_server_time <= 0)
+		{
+			m_server_time = 0;
+			return FALSE;
+		}
+
+		return TRUE;
 	}
 
 public:
@@ -551,6 +608,11 @@ public:
 		return static_cast<HttpStatusCode>(m_status);
 	}
 
+	virtual time_t GetTimeServer()
+	{
+		return m_server_time;
+	}
+
 	std::string GetRedirectUrl()
 	{
 		return m_redirect_url;
@@ -569,6 +631,100 @@ public:
 	friend class HttpClient;
 };
 
+struct HttpCookie : public ArrayObject<HttpCookieData>
+{
+protected:
+	ObjectPtr CreateCookie(const char* str_cookie = NULL)
+	{
+		ObjectPtr cookie = std::make_shared<HttpCookieData>();
+		if (!str_cookie)
+		{
+			return cookie;
+		}
+
+		std::stringstream ss(str_cookie);
+		std::string buff; int count = 0;
+
+		while (std::getline(ss, buff, '\t'))
+		{
+			switch (count)
+			{
+			case 0: cookie->m_domain_name = buff;
+				break;
+			case 1: cookie->m_include_subdomains = !strcmp(buff.c_str(), "FALSE") ? FALSE : TRUE;
+				break;
+			case 2: cookie->m_path = buff;
+				break;
+			case 3: cookie->m_secure = !strcmp(buff.c_str(), "FALSE") ? FALSE : TRUE;
+				break;
+			case 4: cookie->m_expires = atoi(buff.c_str());
+				break;
+			case 5: cookie->m_name = buff;
+				break;
+			case 6: cookie->m_content = buff;
+				break;
+			default:
+				break;
+			}
+			count++;
+		}
+
+		return cookie;
+	}
+
+public:
+	std::string ToString()
+	{
+		std::string temp;
+		for (int i = 0; i <= m_data_list.size(); i++)
+		{
+			auto cookie = m_data_list[i];
+			temp = cookie->m_domain_name +
+				COOKIE_SEP + (cookie->m_include_subdomains ? "TRUE" : "FALSE") +
+				COOKIE_SEP + cookie->m_path +
+				COOKIE_SEP + (cookie->m_secure ? "TRUE" : "FALSE") +
+				COOKIE_SEP + std::to_string(cookie->m_expires) +
+				COOKIE_SEP + cookie->m_name +
+				COOKIE_SEP + cookie->m_content + '\n';
+		}
+		return temp;
+	}
+
+	BOOL SaveToFile(const wchar_t* path)
+	{
+		std::string cont = ToString();
+		return kyhttp::write_data_file(path, cont.c_str(), cont.length());
+	}
+
+	// Ex: "example.com		FALSE	/foobar/	FALSE	1462299217	person	daniel"
+	BOOL Add(const char* str_cookie)
+	{
+		auto cookie = CreateCookie(str_cookie);
+		m_data_list.push_back(cookie);
+		return TRUE;
+	}
+
+	//BOOL Add(	const char* domain_name,
+	//			const bool	inclu_subdomains,
+	//			const char* path,
+	//			bool		secure_transport,
+	//			time_t		expires,
+	//			const char* name,
+	//			const char* content)
+	//{
+	//	auto cookie = CreateCookie();
+	//	cookie->m_domain_name = domain_name;
+	//	cookie->m_include_subdomains = inclu_subdomains ? TRUE : FALSE;
+	//	cookie->m_path		= path;
+	//	cookie->m_secure	= secure_transport ? TRUE : FALSE;
+	//	cookie->m_expires	= expires;
+	//	cookie->m_name		= name;
+	//	cookie->m_content	= content;
+
+	//	m_data_list.push_back(cookie);
+	//	return TRUE;
+	//}
+};
 
 class HttpClient : public IHttpClient
 {
@@ -579,10 +735,11 @@ private:
 	HttpResponsePtr		m_response;
 
 	HttpClientOption	m_option;
-	HttpCookie			m_cookie;
 	SSLSetting			m_ssl_setting;
 	WebProxy			m_proxy;
 	HttpMethod			m_request_method;
+	HttpCookie			m_cookie_recv;
+	HttpCookie			m_cookie_send;
 
 	HttpClientProgress	m_progress;
 
@@ -620,6 +777,7 @@ private:
 		// stop download or upload data network
 		if (progress && progress->m_force_stop)
 		{
+			KY_HTTP_LOG("User forced stop.");
 			return 1;
 		}
 
@@ -638,12 +796,43 @@ private:
 
 		return 0;
 	}
-	static int HttpReceiveResponseFunc(void* contents, size_t size, size_t nmemb, void* user_data)
+	static int HttpReceiveHeaderResponseFunc(void* header, size_t size, size_t nmemb, void* user_data)
 	{
-		if (user_data)
+		HttpClient* client = static_cast<HttpClient*>(user_data);
+
+		if (client && client->m_progress.m_force_stop)
 		{
-			char* test = static_cast<char*>(contents);
-			((HttpBuffer*)user_data)->append((char*)contents, size * nmemb);
+			KY_HTTP_LOG("User forced stop.");
+			return 0;
+		}
+
+		if (client && client->m_response)
+		{
+			client->m_response->m_header.append((char*)header, size * nmemb);
+
+			// check and get time response server
+			if (client->m_option.m_get_server_time && strncmp((char*)(header), "Date:", 5) == 0 &&
+				FALSE == client->m_response->SetTimeServer((char*)header))
+			{
+				KY_HTTP_LOG("format time received is incorrect");
+			}
+		}
+		return size * nmemb;
+	}
+
+	static int HttpReceiveConentResponseFunc(void* contents, size_t size, size_t nmemb, void* user_data)
+	{
+		HttpClient* client = static_cast<HttpClient*>(user_data);
+
+		if (client && client->m_progress.m_force_stop)
+		{
+			KY_HTTP_LOG("User forced stop.");
+			return 0;
+		}
+
+		if (client && client->m_response)
+		{
+			client->m_response->m_content.append((char*)contents, size * nmemb);
 		}
 		return size * nmemb;
 	}
@@ -689,7 +878,7 @@ private:
 		{
 			KY_HTTP_LOG("%s > %s, ssl_check=%s, timeout=%u, auto_redirect=%s",
 						get_string_method(m_request_method).c_str(), url,
-						m_ssl_setting.m_disable_verify_ssl_certificate ? "false" : "true",
+						m_ssl_setting.m_verify_ssl_certificate ? "true": "false",
 						m_option.m_connect_timout,
 						m_option.m_auto_redirect ? "true" : "false");
 		}
@@ -746,24 +935,27 @@ private:
 
 	CURLcode Curl_GetCookie(CURL* curl)
 	{
-		/* export cookies to this file when closing the handle */
-		//curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "cookies.txt");
+		m_cookie_recv.Clear();
 
-		m_cookie.m_cookie_recv.clear();
+		if (!m_option.m_process_cookie)
+			return CURLcode::CURLE_OK;
 
 		struct curl_slist* cookies = NULL;
 		CURLcode res = curl_easy_getinfo(m_curl, CURLINFO_COOKIELIST, &cookies);
-		if (!res && cookies) {
+		if (!res && cookies) 
+		{
 			/* a linked list of cookies in cookie file format */
 			struct curl_slist* each = cookies;
 			while (each)
 			{
-				m_cookie.m_cookie_recv.append(each->data);
+				m_cookie_recv.Add(each->data);
 				each = each->next;
 			}
 			/* we must free these cookies when we are done */
 			curl_slist_free_all(cookies);
 		}
+
+		curl_easy_setopt(curl, CURLOPT_COOKIELIST, "ALL");
 
 		return CURLcode::CURLE_OK;
 	}
@@ -772,7 +964,7 @@ private:
 	{
 		if (curlret == CURLcode::CURLE_OK)
 		{
-			KY_HTTP_LOG("[*] Sent request DONE. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
+			KY_HTTP_LOG("[*] Sent request DONE. total_upload=%s, total_time=%.5f sec, upload_speed=%s/sec",
 				kyhttp::convert_bytes_to_text(m_upload_size).c_str(), m_request_time,
 				kyhttp::convert_bytes_to_text(m_upload_speed).c_str());
 			KY_HTTP_LOG("[*] Received response DONE. status_code:%u, total_download=%s, download_speed=%s/sec.", m_response->m_status,
@@ -781,7 +973,7 @@ private:
 		}
 		else
 		{
-			KY_HTTP_LOG("[*] Sent request FAILED. total_upload=%s, totaltime=%.5f sec, upload_speed=%s/sec",
+			KY_HTTP_LOG("[*] Sent request FAILED. total_upload=%s, total_time=%.5f sec, upload_speed=%s/sec",
 				kyhttp::convert_bytes_to_text(m_upload_size).c_str(),
 				m_request_time,
 				kyhttp::convert_bytes_to_text(m_download_speed).c_str());
@@ -832,6 +1024,8 @@ private:
 			break;
 		case kyhttp::KY_HTTP_REQUEST_TIMEOUT:
 			return "Connetion timeout";
+		case kyhttp::KY_HTTP_USER_FORCE_STOP:
+			return "User forced stop terminal ";
 			break;
 		case kyhttp::KY_HTTP_CREATEDATA_REQUEST_FAIL:
 			return "Create request data failed";
@@ -845,7 +1039,7 @@ private:
 		return "Undefine error";
 	}
 
-	static HttpErrorCode ConvertCURLCodeToHTTPCode(CURLcode curl_code)
+	HttpErrorCode ConvertCURLCodeToHTTPCode(CURLcode curl_code)
 	{
 		HttpErrorCode kyhttp_error_code = KY_HTTP_FAILED;
 	
@@ -891,13 +1085,17 @@ private:
 				kyhttp_error_code = KY_HTTP_SSL_CERTPROBLEM;
 	
 	            break;
-	        case CURLE_OPERATION_TIMEDOUT  :
+	        case CURLE_OPERATION_TIMEDOUT:
 				kyhttp_error_code = KY_HTTP_REQUEST_TIMEOUT;
-	
 	            break;
+			case CURLE_WRITE_ERROR:
+				if (m_progress.m_force_stop)
+				{
+					kyhttp_error_code = KY_HTTP_USER_FORCE_STOP;
+					break;
+				}
 	        default :
 				kyhttp_error_code = KY_HTTP_FAILED;
-	
 	            break;
 	    }
 	
@@ -965,9 +1163,14 @@ private:
 		}
 
 		/* enable the cookie engine */
-		//PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_COOKIEFILE, ""); );
-		//curl_easy_setopt(m_curl, CURLOPT_COOKIEFILE, "");
-		//curl_easy_setopt(m_curl, CURLOPT_COOKIEJAR, "cookies.txt");
+		PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_COOKIEFILE, ""));
+
+		// setup send cookie
+		if (!m_cookie_send.Empty())
+		{
+			std::string test = m_cookie_send.ToString();
+			PASS_CURL_EXEC(curlcode, curl_easy_setopt(m_curl, CURLOPT_COOKIE, test.c_str()));
+		}
 
 		HttpErrorCode retcode = ConvertCURLCodeToHTTPCode(curlcode);
 		return retcode;
@@ -984,10 +1187,10 @@ private:
 			m_response->Clear();
 		}
 
-		//curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, &HttpClient::HttpReceiveResponseFunc);
-		//curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &m_response->m_header);
-		curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &HttpClient::HttpReceiveResponseFunc);
-		curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &m_response->m_content);
+		curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, &HttpClient::HttpReceiveHeaderResponseFunc);
+		curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, this);
+		curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &HttpClient::HttpReceiveConentResponseFunc);
+		curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, this);
 
 		return HttpErrorCode::KY_HTTP_OK;
 	}
@@ -1009,9 +1212,9 @@ private:
 			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 1L);
 			curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
 
-			if(ssl_setting->m_disable_verify_ssl_certificate)
+			if(!ssl_setting->m_verify_ssl_certificate)
 				curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 0L);
-			if (ssl_setting->m_disable_verify_host_certificate)
+			if (!ssl_setting->m_verify_host_certificate)
 				curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 0L);
 		}
 
@@ -1037,9 +1240,9 @@ private:
 			else
 			{
 				// Schannel not support HTTPs-proxy
-				auto proxytype = m_proxy.m_proxy_type == kyhttp::KY_PROXY_HTTPS ?
+				auto proxy_type = m_proxy.m_proxy_type == kyhttp::KY_PROXY_HTTPS ?
 					kyhttp::KY_PROXY_HTTP : m_proxy.m_proxy_type;
-				curl_easy_setopt(m_curl, CURLOPT_PROXYTYPE, proxytype);
+				curl_easy_setopt(m_curl, CURLOPT_PROXYTYPE, proxy_type);
 			}
 
 		    if (!m_proxy.m_username.empty())
@@ -1220,9 +1423,15 @@ public:
 		m_ssl_setting = ssl_setting;
 	}
 
-	virtual void SettingCookie(IN HttpCookie& cookie)
+	virtual void AddCookie(IN const char* str_cookie)
 	{
-		m_cookie = cookie;
+		m_cookie_send.Add(str_cookie);
+	}
+
+	//There is no function will stop it immediately
+	void SetForceStop(IN BOOL stop)
+	{
+		m_progress.m_force_stop = stop;
 	}
 
 public:
@@ -1295,9 +1504,6 @@ public:
 	{
 		return m_response;
 	}
-
-	friend class HttpReponse;
 };
-
 
 __END___NAMESPACE__
